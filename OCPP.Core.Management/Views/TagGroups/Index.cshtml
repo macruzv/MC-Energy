@@ -1,0 +1,75 @@
+@model IEnumerable<OCPP.Core.Database.TagGroup>
+
+@{
+    ViewData["Title"] = "Grupos de Tags";
+}
+
+<div class="container-fluid">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-white">Gestión de Grupos</h1>
+        <a asp-action="Create" asp-route-returnUrl="@ViewBag.ReturnUrl" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Nuevo Grupo
+        </a>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">
+            @TempData["ErrorMessage"]
+        </div>
+    }
+
+    <div class="card shadow mb-4 bg-dark border-0">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover text-white-50">
+                    <thead class="text-white">
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Descripción</th>
+                            <th class="text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="text-white font-weight-bold">@item.Name</td>
+                                <td>@item.Description</td>
+                                <td class="text-right">
+                                    <a asp-action="Edit" asp-route-id="@item.TagGroupId" asp-route-returnUrl="@ViewBag.ReturnUrl" class="btn btn-sm btn-outline-light mr-2">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    @if (!item.Name.Equals("General", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        <form asp-action="Delete" asp-route-id="@item.TagGroupId" asp-route-returnUrl="@ViewBag.ReturnUrl" method="post" style="display:inline;" onsubmit="return confirm('¿Estás seguro de eliminar este grupo?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-3">
+        @if (!string.IsNullOrEmpty(ViewBag.ReturnUrl))
+        {
+            <a href="@ViewBag.ReturnUrl" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-2"></i>Volver
+            </a>
+        }
+        else
+        {
+            <a asp-controller="Settings" asp-action="Index" class="btn btn-secondary">
+                <i class="fas fa-arrow-left mr-2"></i>Volver a Configuración
+            </a>
+        }
+    </div>
+</div>

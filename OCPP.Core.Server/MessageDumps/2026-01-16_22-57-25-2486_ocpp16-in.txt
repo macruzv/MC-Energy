@@ -1,0 +1,1 @@
+[2,"d23badf1-622e-4306-b0d6-161d8f207e26","StatusNotification",{"connectorId":1,"errorCode":"InternalError","status":"Charging","timestamp":"2026-01-17T02:57:25Z"}]

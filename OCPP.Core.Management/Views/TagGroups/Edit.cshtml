@@ -1,0 +1,49 @@
+@model OCPP.Core.Database.TagGroup
+
+@{
+    ViewData["Title"] = (Model.TagGroupId == 0) ? "Nuevo Grupo" : "Editar Grupo";
+}
+
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow mb-4 bg-dark border-0">
+                <div class="card-header py-3 bg-primary border-0">
+                    <h6 class="m-0 font-weight-bold text-white">@ViewData["Title"]</h6>
+                </div>
+                <div class="card-body text-white-50">
+                    <form asp-action="Save" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="TagGroupId" />
+                        <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+
+                        <div class="form-group mb-3">
+                            <label asp-for="Name" class="control-label text-white">Nombre del Grupo</label>
+                            <input asp-for="Name" class="form-control bg-secondary text-white border-0" placeholder="Ej: Flota Logística" required />
+                            <span asp-validation-for="Name" class="text-danger"></span>
+                        </div>
+
+                        <div class="form-group mb-4">
+                            <label asp-for="Description" class="control-label text-white">Descripción (Opcional)</label>
+                            <textarea asp-for="Description" class="form-control bg-secondary text-white border-0" rows="3" placeholder="Descripción breve del grupo para reportes"></textarea>
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="@(string.IsNullOrEmpty(ViewBag.ReturnUrl) ? Url.Action("Index") : ViewBag.ReturnUrl)" class="btn btn-outline-light">
+                                <i class="fas fa-times mr-2"></i>Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="fas fa-save mr-2"></i>Guardar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

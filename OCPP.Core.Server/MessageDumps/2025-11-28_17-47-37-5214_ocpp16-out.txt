@@ -1,0 +1,1 @@
+[2,"e6d2b47d9cc147edac6c884ecd780e5e","Reset",{"type":"Soft"}]

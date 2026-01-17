@@ -1,0 +1,313 @@
+﻿@using Microsoft.AspNetCore.Mvc.Localization
+@model OverviewViewModel
+@inject IViewLocalizer Localizer
+@{
+    ViewData["Title"] = @Localizer["Title"];
+}
+
+@if (Model != null)
+{
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="glass-panel p-4 d-flex justify-content-between align-items-center" style="background: linear-gradient(90deg, rgba(208, 188, 255, 0.1) 0%, rgba(208, 188, 255, 0.02) 100%); border: 1px solid rgba(208, 188, 255, 0.2) !important;">
+                <div class="d-flex align-items-center">
+                    <div class="mr-4 d-none d-md-flex" style="background: rgba(208, 188, 255, 0.1); width: 60px; height: 60px; border-radius: 50%; align-items: center; justify-content: center;">
+                        <i class="fas fa-bolt text-primary-md fa-2x"></i>
+                    </div>
+                    <div>
+                        <h2 class="h5 font-weight-bold mb-1">Iniciar sesión de carga</h2>
+                        <p class="text-muted small mb-0">Flujo optimizado para operadores: selecciona cargador y conector en pasos visuales.</p>
+                    </div>
+                </div>
+                <a href="~/Home/QuickStart" class="btn-md btn-primary-md px-5 shadow-glow py-3">
+                    <i class="fas fa-rocket mr-2"></i> CARGA RÁPIDA
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Summary Stats -->
+    <div class="stats-grid mb-4">
+        <div class="stat-card energy">
+            <div class="stat-label">Energía Total</div>
+            <div class="stat-value large">@string.Format("{0:N1}", Model.TotalEnergy) <span class="h5">kWh</span></div>
+            <div class="stat-trend @(Model.IsTrendUp ? "trend-up" : "trend-down")">
+                <i class="fas @(Model.IsTrendUp ? "fa-arrow-up" : "fa-arrow-down")"></i> 
+                @(Model.EnergyTrendPercent > 0 ? string.Format("{0:N1}%", Model.EnergyTrendPercent) : "0%") 
+                vs Ayer
+            </div>
+            <div class="accent-glow"></div>
+        </div>
+        
+        <div class="stat-card sessions">
+            @{
+                var chargingCount = Model.ChargePoints?.Count(cp => cp.ConnectorStatus == ConnectorStatusEnum.Occupied) ?? 0;
+            }
+            <div class="stat-label">Sesiones Activas</div>
+            <div class="stat-value large">@chargingCount</div>
+            <div class="stat-trend trend-up">
+                <i class="fas fa-bolt"></i> Cargando Ahora
+            </div>
+            <div class="accent-glow"></div>
+        </div>
+
+        <div class="stat-card offline">
+            @{
+                var offlineCount = Model.ChargePoints?.Count(cp => !cp.Online) ?? 0;
+            }
+            <div class="stat-label">Cargadores Offline</div>
+            <div class="stat-value large text-danger">@offlineCount</div>
+            <div class="stat-trend trend-down">
+                <i class="fas fa-exclamation-triangle"></i> Revisa Conexión
+            </div>
+            <div class="accent-glow"></div>
+        </div>
+    </div>
+
+    @if (Model.ChargePoints != null && Model.ChargePoints.Any())
+    {
+        <!-- Power Consumption Chart -->
+        <div class="dashboard-section">
+            <h2 class="h6 mb-3 font-weight-bold text-muted">Consumo de Energía (Tiempo Real)</h2>
+            <div class="chart-container">
+            <div class="chart-container">
+                @if (Model.EnergyHistory != null && Model.EnergyHistory.Any())
+                {
+                    <canvas id="energyChart" style="max-height: 120px;"></canvas>
+                }
+                else
+                {
+                    <div class="text-muted text-center py-4 small">No hay suficientes datos para mostrar la gráfica</div>
+                }
+            </div>
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="dashboard-section">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h6 mb-0 font-weight-bold text-muted">Transacciones Recientes</h2>
+                <a href="~/Home/Transactions" class="small text-primary-md">Ver Todo</a>
+            </div>
+            <div class="glass-panel p-0 overflow-hidden" style="border-radius: 20px;">
+                <div class="table-responsive">
+                    <table class="table-premium mb-0">
+                        <thead>
+                            <tr>
+                                <th>ID Transacción</th>
+                                <th>Conector</th>
+                                <th>Hora Inicio</th>
+                                <th>Energía (kWh)</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.RecentTransactions != null && Model.RecentTransactions.Any())
+                            {
+                                foreach (var t in Model.RecentTransactions)
+                                {
+                                    <tr>
+                                        <td class="small text-muted">#@t.TransactionId</td>
+                                        <td><span class="font-weight-bold">@t.ChargePointId</span> <span class="text-muted ml-1">(@t.ConnectorId)</span></td>
+                                        <td class="small">@t.StartTime.ToLocalTime().ToString("HH:mm")</td>
+                                        <td class="font-weight-bold">@string.Format("{0:0.0}", (t.MeterStop ?? t.MeterStart) - t.MeterStart)</td>
+                                        <td>
+                                            @if (t.StopTime == null)
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-danger px-3 py-1" style="border-radius:100px;" onclick="RemoteStopTransaction('@t.ChargePointId', '@t.TransactionId')">
+                                                    <i class="fas fa-stop-circle mr-1"></i> Parar
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge badge-success px-3 py-1" style="background: rgba(129, 199, 132, 0.1); color: #81c784; border-radius:100px;">Completada</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center p-4 text-muted small">No hay transacciones recientes</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charge Points Grid (Secondary) -->
+        <div class="dashboard-section">
+            <h2 class="h6 mb-3 font-weight-bold text-muted">Estado de Conectores</h2>
+            <div class="cp-grid">
+                @foreach (ChargePointsOverviewViewModel cpvm in Model.ChargePoints.Take(4))
+                {
+                    string statusClass = cpvm.ConnectorStatus == ConnectorStatusEnum.Occupied ? "status-charging" : (cpvm.Online ? "status-available" : "status-offline");
+                    <div class="cp-card" style="padding: 16px; border-radius: 16px;" onclick="location.href='@Url.Content($"~/Home/Control?id={Uri.EscapeDataString(cpvm.ChargePointId)}&connectorId={cpvm.ConnectorId}")'">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center gap-3">
+                                <div style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); border-radius: 12px;">
+                                    <img src="~/img/Pistola.png" style="width: 100%; height: auto; mix-blend-mode: screen; filter: drop-shadow(0 0 8px rgba(208, 188, 255, 0.4));" alt="CP">
+                                </div>
+                                <div class="d-flex flex-column text-left">
+                                    <span class="font-weight-bold small" style="letter-spacing: 0.5px;">CONECTOR #@cpvm.ConnectorId</span>
+                                    <small class="text-muted" style="font-size: 9px;">@cpvm.ChargePointId</small>
+                                </div>
+                            </div>
+                            <div class="cp-status-pill @statusClass" style="font-size: 10px; padding: 2px 8px;">
+                                @(cpvm.Online ? cpvm.ConnectorStatus.ToString() : "Offline")
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="glass-panel text-center p-5 my-5">
+            <div class="mb-4" style="background: rgba(255,255,255,0.03); width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; border: 1px solid var(--glass-border);">
+                <i class="fas fa-charging-station fa-2x text-primary-md"></i>
+            </div>
+            <h2 class="h4 font-weight-bold">No se encontraron cargadores</h2>
+            <p class="text-muted">Conecta un punto de carga para iniciar el monitoreo en tiempo real.</p>
+            <a href="~/Home/ChargePoint/@("@")" class="btn-md btn-primary-md mt-3">
+                <i class="fas fa-plus"></i> Agregar Primer Cargador
+            </a>
+        </div>
+    }
+
+
+    @if (!string.IsNullOrEmpty(ViewBag.ErrorMsg))
+    {
+        <div class="alert alert-danger mt-4 glass d-flex align-items-center" role="alert" style="border-radius: 16px; background: rgba(229, 115, 115, 0.05); border: 1px solid rgba(229, 115, 115, 0.2); color: #e57373;">
+            <i class="fas fa-exclamation-triangle mr-3"></i> 
+            <div>
+                <div class="font-weight-bold">OCPP Server Status</div>
+                <div class="small opacity-75">@ViewBag.ErrorMsg</div>
+            </div>
+        </div>
+    }
+}
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            @if (Model.EnergyHistory != null && Model.EnergyHistory.Any()) {
+                <text>
+                const ctx = document.getElementById('energyChart');
+                if (ctx) {
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [@Html.Raw(string.Join(",", Model.EnergyHistory.Select(x => $"'{x.Time.ToLocalTime().ToString("HH:mm")}'")))],
+                            datasets: [{
+                                label: 'Energía (kWh)',
+                                data: [@string.Join(",", Model.EnergyHistory.Select(x => x.Value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)))],
+                                borderColor: '#d0bcff',
+                                backgroundColor: 'rgba(208, 188, 255, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                pointHoverRadius: 4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    mode: 'index',
+                                    intersect: false,
+                                    backgroundColor: 'rgba(28, 27, 31, 0.9)',
+                                    titleColor: '#e6e1e5',
+                                    bodyColor: '#e6e1e5',
+                                    borderColor: 'rgba(255,255,255,0.1)',
+                                    borderWidth: 1,
+                                    displayColors: false,
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.parsed.y.toFixed(2) + ' kWh';
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    grid: { display: false, drawBorder: false },
+                                    ticks: { color: 'rgba(230, 225, 229, 0.5)', font: { size: 10 }, maxTicksLimit: 8 }
+                                },
+                                y: {
+                                    grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+                                    ticks: { display: false }
+                                }
+                            },
+                            interaction: {
+                                mode: 'nearest',
+                                axis: 'x',
+                                intersect: false
+                            }
+                        }
+                    });
+                }
+                </text>
+            }
+        });
+
+        function RemoteStopTransaction(cpId, tId) {
+            Swal.fire({
+                title: '¿Estás seguro?',
+                text: "Se detendrá la carga remotamente.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sí, parar carga',
+                cancelButtonText: 'Cancelar',
+                background: 'var(--glass-bg)',
+                color: 'var(--md-sys-color-on-surface)',
+                backdrop: `rgba(0,0,0,0.4)`
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Show loading
+                    Swal.fire({
+                        title: 'Procesando...',
+                        html: 'Enviando comando al cargador',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading()
+                        }
+                    });
+
+                    var xmlhttp = new XMLHttpRequest();
+                    xmlhttp.onreadystatechange = function () {
+                        if (xmlhttp.readyState == XMLHttpRequest.DONE) {
+                            Swal.close();
+                            if (xmlhttp.status == 200) {
+                                Swal.fire({
+                                    title: 'Resultado',
+                                    text: xmlhttp.responseText,
+                                    icon: 'info',
+                                    background: 'var(--glass-bg)',
+                                    color: 'var(--md-sys-color-on-surface)'
+                                }).then(() => {
+                                    location.reload();
+                                });
+                            } else {
+                                Swal.fire('Error', 'Hubo un problema al conectar con el servidor.', 'error');
+                            }
+                        }
+                    };
+                    xmlhttp.open("GET", "@Url.Content("~/API/RemoteStop/")" + encodeURIComponent(cpId) + "?tId=" + encodeURIComponent(tId), true);
+                    xmlhttp.send();
+                }
+            })
+        }
+    </script>
+
+

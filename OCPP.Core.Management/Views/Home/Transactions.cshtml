@@ -1,0 +1,257 @@
+﻿@using Microsoft.AspNetCore.Mvc.Localization
+@model TransactionListViewModel
+@inject IViewLocalizer Localizer
+@{
+    ViewData["Title"] = @Localizer["Title"];
+}
+
+@{
+    string timespan = (Model.Timespan == 2) ? "?t=2" : ((Model.Timespan == 3) ? "?t=3" : string.Empty);
+    List<ConnectorStatusViewModel> connectorStatusViewModels = new List<ConnectorStatusViewModel>();
+    Dictionary<string, string> chargePointNames = new Dictionary<string, string>();
+    if (Model.ChargePoints != null)
+    {
+        foreach (ChargePoint cp in Model.ChargePoints)
+        {
+            chargePointNames.Add(cp.ChargePointId, cp.Name);
+        }
+    }
+
+    string currentConnectorName = string.Empty;
+    foreach (ConnectorStatus cs in Model.ConnectorStatuses)
+    {
+        ConnectorStatusViewModel csvm = new ConnectorStatusViewModel();
+        csvm.ChargePointId = cs.ChargePointId;
+        csvm.ConnectorId = cs.ConnectorId;
+
+        string connectorName = cs.ConnectorName;
+        if (string.IsNullOrEmpty(connectorName))
+        {
+            chargePointNames.TryGetValue(cs.ChargePointId, out connectorName);
+            if (string.IsNullOrEmpty(connectorName)) connectorName = cs.ChargePointId;
+            connectorName = $"{connectorName}:{cs.ConnectorId}";
+        }
+        csvm.ConnectorName = connectorName;
+        connectorStatusViewModels.Add(csvm);
+
+        if (cs.ChargePointId == Model.CurrentChargePointId && cs.ConnectorId == Model.CurrentConnectorId)
+        {
+            currentConnectorName = connectorName;
+        }
+    }
+}
+
+<div class="mb-4">
+    <a href="~/" class="text-muted small"><i class="fas fa-home"></i> @Localizer["Overview"]</a>
+    <span class="mx-2 text-muted">/</span>
+    <span class="small font-weight-bold">@Localizer["Transactions"]</span>
+</div>
+
+<div class="stat-card mb-4" style="overflow: visible; position: relative; z-index: 10;">
+    <div class="row align-items-center">
+        <div class="col-md-auto mb-3 mb-md-0">
+            <label class="form-label-md">@Localizer["ChargePointLabel"]</label>
+            <div class="dropdown">
+                <button class="btn-md btn-secondary btn-block dropdown-toggle" type="button" id="ddbChargePoint" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                    <i class="fas fa-plug text-primary-md"></i> @currentConnectorName
+                </button>
+                <div class="dropdown-menu glass" aria-labelledby="ddbChargePoint">
+                    @foreach (ConnectorStatusViewModel csvm in connectorStatusViewModels)
+                    {
+                        <a class="dropdown-item" href="~/Home/Transactions/@Uri.EscapeDataString(csvm.ChargePointId ?? string.Empty)/@csvm.ConnectorId@timespan">@csvm.ConnectorName</a>
+                    }
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-auto mb-3 mb-md-0">
+            <label class="form-label-md">@Localizer["TimeSpanLabel"]</label>
+            <div class="dropdown">
+                <button class="btn-md btn-secondary btn-block dropdown-toggle" type="button" id="ddbTimespan" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                    <i class="far fa-calendar-alt text-primary-md"></i>
+                    @if (Model.Timespan == 2) { @Localizer["TimeSpan90"] }
+                    else if (Model.Timespan == 3) { @Localizer["TimeSpan365"] }
+                    else { @Localizer["TimeSpan30"] }
+                </button>
+                <div class="dropdown-menu glass" aria-labelledby="ddbTimespan">
+                    @{
+                        string baseUrl = Url.Content("~/Home/Transactions");
+                        string pathParams = (!string.IsNullOrEmpty(Model.CurrentChargePointId)) ? $"/{Uri.EscapeDataString(Model.CurrentChargePointId)}/{Model.CurrentConnectorId}" : "";
+                    }
+                    <a class="dropdown-item" href="@baseUrl@pathParams">@Localizer["TimeSpan30"]</a>
+                    <a class="dropdown-item" href="@baseUrl@pathParams?t=2">@Localizer["TimeSpan90"]</a>
+                    <a class="dropdown-item" href="@baseUrl@pathParams?t=3">@Localizer["TimeSpan365"]</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md text-md-right align-self-end">
+            <div class="btn-group">
+                @{
+                    string exportBase = Url.Content("~/Home");
+                    string exportParams = (!string.IsNullOrEmpty(Model.CurrentChargePointId)) ? $"/Export/{Uri.EscapeDataString(Model.CurrentChargePointId)}/{Model.CurrentConnectorId}" : "/Export";
+                    string exportXlsxParams = (!string.IsNullOrEmpty(Model.CurrentChargePointId)) ? $"/ExportXlsx/{Uri.EscapeDataString(Model.CurrentChargePointId)}/{Model.CurrentConnectorId}" : "/ExportXlsx";
+                }
+                <a href="@exportBase@exportParams@timespan" class="btn btn-dark" style="border-radius:12px 0 0 12px; border-right: 1px solid var(--glass-border);" title="@Localizer["DownloadCsv"]">
+                    <i class="fas fa-file-csv text-primary-md"></i> CSV
+                </a>
+                <a href="@exportBase@exportXlsxParams@timespan" class="btn btn-dark" style="border-radius:0 12px 12px 0;" title="@Localizer["DownloadXlsx"]">
+                    <i class="fas fa-file-excel text-success"></i> Excel
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model != null)
+{
+    <div class="glass-panel">
+        <div class="table-responsive">
+            <table id="dtTransactions" class="table-premium">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>@Localizer["StartTime"]</th>
+                        <th>@Localizer["StopTime"]</th>
+                        <th>@Localizer["StartTag"]</th>
+                        <th>@Localizer["MeterStart"]</th>
+                        <th>@Localizer["MeterStop"]</th>
+                        <th class="text-right">@Localizer["ChargeSum"] (kWh)</th>
+                        <th>@Localizer["StopReason"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Transactions != null)
+                    {
+                        foreach (TransactionExtended t in Model.Transactions)
+                        {
+                            <tr class="glass-row">
+                                <td class="text-muted small">#@t.TransactionId</td>
+                                <td>
+                                    <div class="font-weight-bold">@t.StartTime.ToLocalTime().ToShortTimeString()</div>
+                                    <div class="small text-muted">@t.StartTime.ToLocalTime().ToShortDateString()</div>
+                                </td>
+                                <td>
+                                    @if (t.StopTime != null)
+                                    {
+                                        <div class="font-weight-bold">@t.StopTime.Value.ToLocalTime().ToShortTimeString()</div>
+                                        <div class="small text-muted">@t.StopTime.Value.ToLocalTime().ToShortDateString()</div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-primary-md"><i class="fas fa-charging-station fa-spin mr-1"></i> Charging</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge badge-pill badge-secondary px-3 py-2" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);">
+                                        <i class="fas fa-id-card mr-2 small text-primary-md"></i>
+                                        @(string.IsNullOrEmpty(t.StartTagName) ? t.StartTagId : t.StartTagName)
+                                    </span>
+                                </td>
+                                <td class="text-muted small">@string.Format("{0:0.0##}", t.MeterStart)</td>
+                                <td class="text-muted small">@((t.MeterStop != null) ? string.Format("{0:0.0##}", t.MeterStop) : "-")</td>
+                                <td class="text-right">
+                                    @if (t.MeterStop != null)
+                                    {
+                                        <span class="h6 font-weight-bold text-success">@string.Format("{0:0.0##}", (t.MeterStop - t.MeterStart))</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-muted small">
+                                    @if (!string.IsNullOrEmpty(t.StopReason))
+                                    {
+                                        <span class="badge badge-outline-secondary" style="border: 1px solid var(--glass-border); color: var(--md-sys-color-on-surface-variant);">@t.StopReason</span>
+                                        <a href="~/Home/Ticket/@t.TransactionId?print=true" target="_blank" class="btn btn-sm btn-outline-info ml-2" title="Imprimir Ticket">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                    }
+                                    else if (t.StopTime == null)
+                                    {
+                                        <div class="btn-group">
+                                            <a href="~/Home/Control?id=@Uri.EscapeDataString(t.ChargePointId)&connectorId=@t.ConnectorId" class="btn btn-sm btn-outline-primary" title="Ver Control">
+                                                <i class="fas fa-desktop"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="RemoteStopTransaction('@t.ChargePointId', '@t.TransactionId')" title="Parar Sesión">
+                                                <i class="fas fa-stop-circle"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <a href="~/Home/Ticket/@t.TransactionId?print=true" target="_blank" class="btn btn-sm btn-outline-info" title="Imprimir Ticket">
+                                            <i class="fas fa-print"></i>
+                                        </a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+
+@section Scripts {
+    <script>
+        function RemoteStopTransaction(cpId, tId) {
+            Swal.fire({
+                title: '¿Estás seguro?',
+                text: "Se detendrá la carga remotamente.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sí, parar carga',
+                cancelButtonText: 'Cancelar',
+                background: 'rgba(28, 27, 31, 1)',
+                color: '#fff'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Procesando...',
+                        didOpen: () => { Swal.showLoading() }
+                    });
+                    var xmlhttp = new XMLHttpRequest();
+                    xmlhttp.onreadystatechange = function () {
+                        if (xmlhttp.readyState == XMLHttpRequest.DONE) {
+                            Swal.close();
+                            Swal.fire('Resultado', xmlhttp.responseText, 'info').then(() => {
+                                location.reload();
+                            });
+                        }
+                    };
+                    xmlhttp.open("GET", "@Url.Content("~/API/RemoteStop/")" + encodeURIComponent(cpId) + "?tId=" + encodeURIComponent(tId), true);
+                    xmlhttp.send();
+                }
+            })
+        }
+    </script>
+    <style>
+        .dropdown-menu.glass {
+            background: rgba(28, 27, 31, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 8px;
+            margin-top: 8px;
+        }
+        .dropdown-item {
+            color: var(--md-sys-color-on-surface);
+            border-radius: 8px;
+            padding: 8px 16px;
+        }
+        .dropdown-item:hover {
+            background: var(--md-sys-color-surface-variant);
+            color: var(--md-sys-color-on-surface);
+        }
+        .glass-row:hover {
+            background: rgba(255,255,255,0.05);
+        }
+    </style>
+}
+

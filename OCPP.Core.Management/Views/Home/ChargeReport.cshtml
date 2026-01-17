@@ -1,0 +1,262 @@
+﻿@using Microsoft.AspNetCore.Mvc.Localization
+@model OCPP.Core.Management.Models.ChargeReportViewModel
+@inject IViewLocalizer Localizer
+
+
+
+
+@{
+    ViewData["Title"] = Localizer["Title"];
+    DateTime dtNow = DateTime.Now;
+    
+    // Calculate Grand Total
+    double grandTotalEnergy = 0;
+    foreach(var grp in Model.Groups)
+    {
+        foreach(var tag in grp.Tags)
+        {
+             grandTotalEnergy += tag.Transactions.Where(t => t.Energy.HasValue).Sum(t => t.Energy.Value);
+        }
+    }
+}
+
+<style>
+    /* Dark Theme & Glassmorphism Overrides for this view */
+    .charge-report-container {
+        color: #e6edf3;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* Filters Section */
+    .filters-container {
+        background: rgba(22, 27, 34, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .form-control-dark {
+        background-color: #21262d;
+        border: 1px solid #444;
+        color: white;
+    }
+    
+    .form-control-dark:focus {
+        background-color: #21262d;
+        color: white;
+        border-color: var(--accent-color);
+    }
+
+    /* Report Summary Header */
+    .report-summary-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-top: 30px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #30363d;
+        padding-bottom: 10px;
+    }
+    
+    .summary-title {
+        margin: 0; 
+        font-size: 1.2rem; 
+        color: #8b949e;
+    }
+    
+    .summary-value {
+        font-size: 1.5rem; 
+        font-weight: bold;
+    }
+    
+    .grand-total-value {
+        font-size: 2.5rem; 
+        font-weight: bold; 
+        color: #4da3ff; /* Accent color */
+    }
+
+    /* Group Tables */
+    .group-section {
+        margin-top: 30px;
+    }
+
+    .group-title {
+        font-size: 1.5rem;
+        margin-bottom: 15px;
+        color: #e6edf3;
+        border-bottom: 2px solid #30363d;
+        display: inline-block;
+        padding-right: 20px;
+    }
+
+    .table-glass {
+        background: rgba(22, 27, 34, 0.6);
+        border-radius: 8px;
+        overflow: hidden;
+        width: 100%;
+        margin-bottom: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .table-glass thead th {
+        background-color: #161b22;
+        color: #8b949e;
+        border-top: none;
+        border-bottom: 1px solid #30363d;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        padding: 12px 20px;
+    }
+    
+    .table-glass tbody td {
+        border-top: 1px solid #30363d;
+        color: #c9d1d9;
+        padding: 12px 20px;
+    }
+    
+    .table-glass tbody tr:hover {
+        background-color: rgba(255,255,255,0.02);
+    }
+
+    .energy-val {
+        font-family: 'Consolas', monospace;
+        color: #79c0ff;
+    }
+    
+    .subtotal-row {
+        background: rgba(0, 123, 255, 0.1); 
+        font-weight: bold;
+    }
+</style>
+
+<div class="charge-report-container container-fluid">
+    <br />
+    
+    <!-- Title and Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>@ViewData["Title"]</h1>
+        <div class="actions">
+             <a href="@Url.Action("ChargeReportCsv", new { startDate = Model.StartDate.ToString("yyyy-MM-dd"), stopDate = Model.StopDate.ToString("yyyy-MM-dd"), group = Model.GroupFilter })" 
+                class="btn btn-outline-secondary" title="@Localizer["ExpSummaryCSVTooltipp"]">
+                <i class="fas fa-file-csv"></i> CSV
+            </a>
+            <a href="@Url.Action("ChargeReportXlsx", new { startDate = Model.StartDate.ToString("yyyy-MM-dd"), stopDate = Model.StopDate.ToString("yyyy-MM-dd"), group = Model.GroupFilter })" 
+               class="btn btn-outline-success ml-2" title="@Localizer["ExpSummaryXLSXTooltipp"]">
+                <i class="fas fa-file-excel"></i> Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters Form -->
+    <form method="get" asp-action="ChargeReport" class="filters-container">
+        
+        <!-- Quick Date Buttons -->
+        <div class="btn-group mr-3">
+            <a href="@Url.Action("ChargeReport", new { startDate = dtNow.ToString("yyyy-01-01"), stopDate = dtNow.ToString("yyyy-MM-dd"), group = Model.GroupFilter })" class="btn btn-sm btn-secondary">@Localizer["YearToDate"]</a>
+            <a href="@Url.Action("ChargeReport", new { startDate = dtNow.AddYears(-1).ToString("yyyy-01-01"), stopDate = dtNow.AddYears(-1).ToString("yyyy-12-31"), group = Model.GroupFilter })" class="btn btn-sm btn-secondary">@Localizer["PreviousYear"]</a>
+            <a href="@Url.Action("ChargeReport", new { startDate = dtNow.AddMonths(-1).ToString("yyyy-MM-01"), stopDate = new DateTime(dtNow.Year, dtNow.Month, 1).AddDays(-1).ToString("yyyy-MM-dd"), group = Model.GroupFilter })" class="btn btn-sm btn-secondary">@Localizer["PreviousMonth"]</a>
+             <a href="@Url.Action("ChargeReport", new { startDate = dtNow.AddDays(-(int)dtNow.DayOfWeek - 7).ToString("yyyy-MM-dd"), stopDate = dtNow.AddDays(-(int)dtNow.DayOfWeek).AddDays(-1).ToString("yyyy-MM-dd"), group = Model.GroupFilter })" class="btn btn-sm btn-secondary">@Localizer["PreviousWeek"]</a>
+        </div>
+
+        <!-- Date Inputs -->
+        <div class="d-flex align-items-center mr-3">
+            <label for="startDate" class="mr-2 mb-0">@Localizer["StartDate"]:</label>
+            <input type="date" id="startDate" name="startDate" class="form-control form-control-dark form-control-sm" value="@Model.StartDate.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="d-flex align-items-center mr-3">
+            <label for="stopDate" class="mr-2 mb-0">@Localizer["StopDate"]:</label>
+            <input type="date" id="stopDate" name="stopDate" class="form-control form-control-dark form-control-sm" value="@Model.StopDate.ToString("yyyy-MM-dd")" />
+        </div>
+
+        <!-- Group Dropdown -->
+        <div class="d-flex align-items-center mr-3">
+            <label for="group" class="mr-2 mb-0">@Localizer["ChargeReportGroup"]:</label>
+            <select id="group" name="group" class="form-control form-control-dark form-control-sm">
+                <option value="">Todos los Grupos</option>
+                @if (Model.AvailableGroups != null)
+                {
+                    foreach (var grp in Model.AvailableGroups)
+                    {
+                        if (grp == Model.GroupFilter)
+                        {
+                            <option value="@grp" selected>@grp</option>
+                        }
+                        else
+                        {
+                            <option value="@grp">@grp</option>
+                        }
+                    }
+                }
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm">@Localizer["Submit"]</button>
+    </form>
+
+    @if (Model.Groups.Count == 0)
+    {
+        <div class="alert alert-info">@Localizer["NoData"]</div>
+    }
+    else
+    {
+        <!-- Use In-Memory Localizer for Report Period/Total if needed, or static for now/mockup fit -->
+        <!-- Report Summary Header -->
+        <div class="report-summary-header">
+            <div>
+                <h2 class="summary-title">Período del Reporte</h2>
+                <div class="summary-value">@Model.StartDate.ToString("MMMM dd, yyyy") - @Model.StopDate.ToString("MMMM dd, yyyy")</div>
+            </div>
+            <div class="text-end">
+                <h2 class="summary-title">Gran Total</h2>
+                <div class="grand-total-value">@Math.Round(grandTotalEnergy, 2) kWh</div>
+            </div>
+        </div>
+
+        @foreach (var group in Model.Groups)
+        {
+            double groupTotal = 0;
+            <div class="group-section">
+                <!-- Calculate Group Total -->
+                @{
+                    foreach(var tag in group.Tags) {
+                         groupTotal += tag.Transactions.Where(t => t.Energy.HasValue).Sum(t => t.Energy.Value);
+                    }
+                }
+                
+                <h3 class="group-title">@group.GroupName <span style="font-size: 1rem; color: #8b949e; font-weight: normal; margin-left: 10px;">(@Math.Round(groupTotal, 2) kWh)</span></h3>
+                
+                <table class="table table-glass">
+                    <thead>
+                        <tr>
+                            <th>@Localizer["TagName"]</th>
+                            <th class="text-right">@Localizer["Energy-kWh"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tag in group.Tags)
+                        {
+                            var totalEnergy = tag.Transactions
+                                .Where(t => t.Energy.HasValue)
+                                .Sum(t => t.Energy.Value);
+
+                            <tr>
+                                <td>@tag.TagName</td>
+                                <td class="text-right energy-val">@(Math.Round(totalEnergy, 2))</td>
+                            </tr>
+                        }
+                        <tr class="subtotal-row">
+                            <td>Total</td>
+                            <td class="text-right energy-val">@Math.Round(groupTotal, 2)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>

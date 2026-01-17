@@ -1,0 +1,40 @@
+@using Microsoft.AspNetCore.Mvc.Localization
+@inject IViewLocalizer Localizer
+
+@{
+    ViewData["Title"] = "Acceso Denegado";
+}
+
+<div class="container mt-5 pt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="card bg-dark border-danger shadow-lg p-5">
+                <div class="card-body">
+                    <i class="fas fa-exclamation-triangle fa-5x text-danger mb-4"></i>
+                    <h1 class="text-white mb-3">@ViewData["Title"]</h1>
+                    <p class="lead text-gray-400 mb-5">
+                        Lo sentimos, no tienes los permisos suficientes para acceder a esta página. 
+                        Si crees que esto es un error, por favor contacta al administrador del sistema.
+                    </p>
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="/" class="btn btn-outline-primary px-4">Ir al Dashboard</a>
+                        <a href="/Account/Logout" class="btn btn-danger px-4">Cerrar Sesión e Intentar con otra cuenta</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    body {
+        background-color: #121212 !important;
+    }
+    .card {
+        border-radius: 15px;
+        background: #1e1e1e !important;
+    }
+    .text-gray-400 {
+        color: #b0b0b0 !important;
+    }
+</style>

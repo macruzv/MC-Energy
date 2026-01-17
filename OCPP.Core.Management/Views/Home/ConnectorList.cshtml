@@ -1,0 +1,245 @@
+﻿@using Microsoft.AspNetCore.Mvc.Localization
+@model ConnectorStatusViewModel
+@inject IViewLocalizer Localizer
+
+@{
+    ViewData["Title"] = @Localizer["Title"];
+}
+<br />
+
+<div class="mb-4">
+    <a href="~/" class="text-muted small"><i class="fas fa-home"></i> @Localizer["Overview"]</a>
+    <span class="mx-2 text-muted">/</span>
+    <span class="small font-weight-bold">
+        @(Context.Request.Query.ContainsKey("id") ? $"Conectores del Cargador: {Context.Request.Query["id"]}" : Localizer["Connectors"].Value)
+    </span>
+</div>
+
+@if (Model != null)
+{
+    bool isVisualMode = Context.Request.Query.ContainsKey("id") || ViewContext.RouteData.Values.ContainsKey("id");
+
+    if (isVisualMode)
+    {
+        <!-- MODO VISUAL: Tarjetas grandes de selección (Mockup style) -->
+        <div class="row justify-content-center mt-5">
+            @if (Model.ConnectorStatuses != null)
+            {
+                var onlineStatus = ViewBag.OnlineStatus as ChargePointStatus;
+                foreach (ConnectorStatus cs in Model.ConnectorStatuses)
+                {
+                    bool isLiveOnline = onlineStatus != null && onlineStatus.OnlineConnectors != null && onlineStatus.OnlineConnectors.ContainsKey(cs.ConnectorId);
+                    string liveStatus = isLiveOnline ? onlineStatus.OnlineConnectors[cs.ConnectorId].Status.ToString() : "Desconectado";
+                    bool canSelect = (liveStatus == "Available" || liveStatus == "Preparing" || liveStatus == "Charging" || liveStatus == "Occupied");
+                    
+                    <div class="col-md-5 mb-4">
+                        <div class="glass-panel text-center connector-selection-card p-5 @(canSelect ? "" : "card-disabled")" 
+                             @(canSelect ? $"onclick=location.href='{Url.Action("Control", "Home", new { id = cs.ChargePointId, connectorId = cs.ConnectorId })}'" : "")>
+                            
+                            <div class="card-circuit-overlay"></div>
+                            
+                            <div class="connector-icon mb-4 @(liveStatus.ToLower() == "available" ? "status-available" : (liveStatus.ToLower() == "preparing" ? "status-preparing" : (liveStatus.ToLower() == "charging" ? "status-charging" : "status-offline")))">
+                                <img src="@Url.Content("~/img/gbt-dc.png")" class="gbt-plug-img" alt="GBT DC Plug" />
+                                @if (liveStatus.ToLower() == "available") { <div class="glow-ring"></div> }
+                            </div>
+                            
+                            <h2 class="h3 font-weight-bold mb-2">CONECTOR #@cs.ConnectorId</h2>
+                            <p class="text-muted mb-4">@cs.ConnectorName</p>
+                            
+                            <div class="status-badge-inline @(liveStatus.ToLower() == "available" ? "available" : (liveStatus.ToLower() == "charging" ? "busy" : "offline"))">
+                                @liveStatus.ToUpper()
+                            </div>
+
+                            @if (!canSelect)
+                            {
+                                <div class="mt-3 text-danger small font-weight-bold">
+                                    <i class="fas fa-exclamation-triangle"></i> CONECTOR NO DISPONIBLE
+                                </div>
+                            }
+
+                            <button class="btn-md btn-primary-md w-100 mt-4 py-3 font-weight-bold shadow-glow" 
+                                    style="border-radius: 100px;" @(canSelect ? "" : "disabled")>
+                                @(canSelect ? "SELECCIONAR" : "NO DISPONIBLE")
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    }
+    else
+    {
+        <!-- MODO TABLA: Vista general de conectores -->
+        <div class="glass-panel">
+            <div class="table-responsive">
+                <table id="dtConnectors" class="table-premium">
+                    <thead>
+                        <tr>
+                            <th>Charge Point</th>
+                            <th>#</th>
+                            <th>@Localizer["ConnectorName"]</th>
+                            <th>@Localizer["LastStatus"]</th>
+                            <th>@Localizer["LastStatusTime"]</th>
+                            <th class="text-right">@Localizer["LastMeter"]</th>
+                            <th class="text-center">Panel</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.ConnectorStatuses != null)
+                        {
+                            foreach (ConnectorStatus cs in Model.ConnectorStatuses)
+                            {
+                                <tr class="table-row glass-row" data-timestamp="@(cs.LastStatusTime.HasValue ? cs.LastStatusTime.Value.ToUniversalTime().ToString("o") : "")">
+                                    <td class="font-weight-bold">@cs.ChargePointId</td>
+                                    <td class="text-muted">@cs.ConnectorId</td>
+                                    <td>@cs.ConnectorName</td>
+                                    <td onclick="window.location='@Url.Action("Connector", Constants.HomeController, new { id = cs.ChargePointId, connectorId = cs.ConnectorId.ToString() })'" style="cursor:pointer">
+                                        <span class="cp-status-pill @(cs.LastStatus?.ToLower() == "available" ? "status-available" : (cs.LastStatus?.ToLower() == "charging" ? "status-charging" : "status-offline"))">
+                                            @((!string.IsNullOrEmpty(cs.LastStatus)) ? cs.LastStatus : "-")
+                                        </span>
+                                    </td>
+                                    <td class="text-muted small">@((cs.LastStatusTime.HasValue) ? string.Format("{0:G}", cs.LastStatusTime.Value.ToLocalTime()) : "-")</td>
+                                    <td class="text-right font-weight-bold text-primary-md">
+                                        @((cs.LastMeter.HasValue) ? string.Format("{0:0.0##}", cs.LastMeter.Value) : "-" )
+                                    </td>
+                                    <td class="text-center">
+                                        <a href="@Url.Action("Control", "Home", new { id = cs.ChargePointId, connectorId = cs.ConnectorId })" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                            <i class="fas fa-terminal"></i> Control
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@section Scripts {
+    <style>
+        .row-stale td {
+            background: rgba(229, 115, 115, 0.05) !important;
+            color: #e57373 !important;
+        }
+        .row-stale .text-muted { color: #e57373 !important; opacity: 0.7; }
+
+        /* Visual Selector Styles */
+        .connector-selection-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.05) !important;
+        }
+        .connector-selection-card:hover {
+            transform: translateY(-15px) scale(1.02);
+            border-color: rgba(208, 188, 255, 0.3) !important;
+            background: rgba(255,255,255,0.08) !important;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(208, 188, 255, 0.1);
+        }
+
+        .card-circuit-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg width='200' height='200' viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 20 L180 20 L180 180 L20 180 Z' fill='none' stroke='rgba(208, 188, 255, 0.05)' stroke-width='1'/%3E%3Ccircle cx='20' cy='20' r='2' fill='rgba(208, 188, 255, 0.1)'/%3E%3Ccircle cx='180' cy='180' r='2' fill='rgba(208, 188, 255, 0.1)'/%3E%3Cpath d='M20 100 L60 100 L80 120 L120 120 L140 100 L180 100' fill='none' stroke='rgba(208, 188, 255, 0.03)' stroke-width='1'/%3E%3C/svg%3E");
+            opacity: 0.5;
+            pointer-events: none;
+            z-index: 0;
+            border-radius: 28px;
+        }
+        
+        .connector-icon {
+            width: 160px;
+            height: 160px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 1.5rem;
+            z-index: 2;
+        }
+        
+        .gbt-plug-img {
+            width: 100%;
+            height: auto;
+            filter: drop-shadow(0 0 15px rgba(0,0,0,0.6));
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .connector-selection-card:hover .gbt-plug-img {
+            transform: scale(1.15) rotate(-3deg);
+        }
+
+        .status-available .gbt-plug-img {
+            filter: drop-shadow(0 0 25px rgba(0, 255, 128, 0.5));
+        }
+
+        .status-charging .gbt-plug-img {
+            filter: drop-shadow(0 0 25px rgba(187, 134, 252, 0.5));
+        }
+
+        .status-offline .gbt-plug-img {
+            filter: grayscale(1) opacity(0.5);
+        }
+        
+        .connector-icon.status-available::after {
+            content: ''; position: absolute; width: 140%; height: 140%;
+            border-radius: 50%; border: 2px solid rgba(0, 255, 128, 0.3);
+            animation: pulse-ring 2s infinite;
+            z-index: 1;
+        }
+
+        .status-badge-inline {
+            display: inline-block;
+            padding: 8px 24px;
+            border-radius: 100px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .status-badge-inline.available { background: rgba(0, 255, 128, 0.1); color: #00ff80; border: 1px solid rgba(0, 255, 128, 0.2); }
+        .status-badge-inline.busy { background: rgba(187, 134, 252, 0.1); color: #bb86fc; border: 1px solid rgba(187, 134, 252, 0.2); }
+        .status-badge-inline.offline { background: rgba(255, 82, 82, 0.1); color: #ff5252; border: 1px solid rgba(255, 82, 82, 0.2); }
+
+        .card-disabled {
+            opacity: 0.7;
+            filter: grayscale(0.5);
+            cursor: not-allowed !important;
+            pointer-events: none;
+        }
+        .card-disabled:hover { transform: none !important; box-shadow: none !important; }
+
+        .connector-icon.status-offline { color: #ff5252; }
+        .shadow-glow { box-shadow: 0 0 20px rgba(187, 134, 252, 0.3); }
+
+        @@keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(1.4); opacity: 0; }
+        }
+    </style>
+    <script>
+        $(document).ready(function () {
+            const fiveMinutesInMs = 5 * 60 * 1000;
+
+            function updateRowColors() {
+                const now = new Date();
+                $('.table-row').each(function () {
+                    const row = $(this);
+                    const timestampStr = row.data('timestamp');
+
+                    if (timestampStr) {
+                        const timestamp = new Date(timestampStr);
+                        const difference = now - timestamp;
+
+                        if (difference > fiveMinutesInMs) {
+                            row.addClass('row-stale');
+                        }
+                    }
+                });
+            }
+
+            updateRowColors();
+        });
+    </script>
+}
+

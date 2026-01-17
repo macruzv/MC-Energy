@@ -1,0 +1,1 @@
+[2,"09866728-6534-4655-94cd-f8d39b625d16","StatusNotification",{"connectorId":0,"errorCode":"NoError","info":"Disconnecting","status":"Unavailable","timestamp":"2026-01-17T03:29:21Z"}]

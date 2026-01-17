@@ -1,0 +1,296 @@
+@{
+    ViewData["Title"] = "Configuración del Sistema";
+}
+
+<div class="container-fluid py-4">
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success bg-success-soft border-0 text-white mb-4">
+            <i class="fas fa-check-circle mr-2"></i> @TempData["SuccessMessage"]
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger bg-danger-soft border-0 text-white mb-4">
+            <i class="fas fa-exclamation-triangle mr-2"></i> @TempData["ErrorMessage"]
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-12">
+            <div class="glass-panel p-4 mb-4">
+                <div class="d-flex align-items-center mb-4">
+                    <div class="icon-shape bg-primary-soft text-primary-md rounded-circle mr-3">
+                        <i class="fas fa-cogs fa-lg"></i>
+                    </div>
+                    <h2 class="h4 mb-0 text-white">Configuración del Sistema</h2>
+                </div>
+
+                <div class="row">
+                    <!-- Sincronización de Datos (Nueva) - Solo visible en Local/SQLite -->
+                    @if (ViewBag.IsSqlServer != true)
+                    {
+                        <div class="col-md-6 mb-4">
+                            <div class="card bg-primary-soft border-0 rounded-lg h-100">
+                                <div class="card-body d-flex flex-column justify-content-between">
+                                    <div class="mb-3">
+                                        <h5 class="text-white mb-1">
+                                            <i class="fas fa-sync-alt mr-2 text-primary-md"></i>Datos de Producción (SQL Server)
+                                        </h5>
+                                        <p class="text-muted small mb-0">Trae los cargadores, clientes y etiquetas reales desde el servidor de producción a tu entorno local.</p>
+                                    </div>
+                                    <div>
+                                        <form asp-action="SyncFromProduction" method="post" id="syncForm">
+                                            <button type="button" onclick="confirmSync()" class="btn btn-primary-md px-4 py-2 btn-block">
+                                                <i class="fas fa-download mr-2"></i>SINCRONIZAR AHORA
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Gestión de Grupos de Tarjetas (Nueva) -->
+                    <div class="@(ViewBag.IsSqlServer == true ? "col-12" : "col-md-6") mb-4">
+                        <div class="card bg-primary-soft border-0 rounded-lg h-100">
+                            <div class="card-body d-flex flex-column justify-content-between">
+                                <div class="mb-3">
+                                    <h5 class="text-white mb-1">
+                                        <i class="fas fa-tags mr-2 text-primary-md"></i>Grupos de Tarifas/Reportes
+                                    </h5>
+                                    <p class="text-muted small mb-0">Define los grupos (ej. Departamentos, Flotas) para clasificar los conductores en los reportes de carga.</p>
+                                </div>
+                                <div>
+                                    <a asp-controller="TagGroups" asp-action="Index" class="btn btn-primary-md px-4 py-2 btn-block">
+                                        <i class="fas fa-list-ul mr-2"></i>GESTIONAR GRUPOS
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <!-- Configuración de Empresa -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card bg-dark-light border-0 rounded-lg h-100">
+                            <div class="card-body">
+                                <h5 class="text-white mb-3">
+                                    <i class="fas fa-building mr-2 text-primary-md"></i>Datos de la Empresa
+                                </h5>
+                                <form asp-action="SaveCompany" method="post">
+                                    <div class="form-group">
+                                        <label class="text-muted small uppercase font-weight-bold">Nombre de la Empresa</label>
+                                        <input type="text" name="companyName" class="form-control bg-dark border-0 text-white" value="@ViewBag.CompanyName" placeholder="ENERGY CORE MC">
+                                    </div>
+                                    <div class="form-group mt-3">
+                                        <label class="text-muted small uppercase font-weight-bold">Dirección / Detalles</label>
+                                        <input type="text" name="companyAddress" class="form-control bg-dark border-0 text-white" value="@ViewBag.CompanyAddress" placeholder="Estación de Carga Eléctrica">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary-md btn-block mt-3">
+                                        <i class="fas fa-save mr-2"></i>Actualizar Datos
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configuración de Tarificación -->
+                    <div class="col-md-6 mb-4">
+                        <div class="card bg-dark-light border-0 rounded-lg h-100">
+                            <div class="card-body">
+                                <h5 class="text-white mb-3">
+                                    <i class="fas fa-dollar-sign mr-2 text-primary-md"></i>Tarificación
+                                </h5>
+                                <form asp-action="SavePrice" method="post">
+                                    <div class="form-group">
+                                        <label class="text-muted small uppercase font-weight-bold">Precio por kWh</label>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text bg-dark border-0 text-white">$</span>
+                                            </div>
+                                            <input type="number" step="0.01" name="price" class="form-control bg-dark border-0 text-white" value="@ViewBag.PricePerKWh" placeholder="0.00">
+                                        </div>
+                                        <small class="text-muted">Este precio se utilizará para calcular el total en los tickets impresos.</small>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary-md btn-block mt-3">
+                                        <i class="fas fa-save mr-2"></i>Guardar Cambios
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Configuración de Impresión Avanzada -->
+                    <div class="col-12">
+                        <div class="card bg-dark-light border-0 rounded-lg">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-4">
+                                    <h5 class="text-white mb-0">
+                                        <i class="fas fa-print mr-2 text-primary-md"></i>Configuración de Impresión y PDA
+                                    </h5>
+                                </div>
+                                
+                                <form asp-action="SavePrinterSettings" method="post">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-group">
+                                                <label class="text-muted small uppercase font-weight-bold">Modo de Conexión</label>
+                                                <select name="printerMode" class="form-control bg-dark border-0 text-white" id="printerMode" onchange="togglePrinterType(this.value)">
+                                                    <option value="local" selected="@(ViewBag.PrinterMode == "local")">Impresora Local (USB / Bluetooth PDA)</option>
+                                                    <option value="network" selected="@(ViewBag.PrinterMode == "network")">Impresora de Red (Ethernet / Wi-Fi)</option>
+                                                    <option value="web" selected="@(ViewBag.PrinterMode == "web")">Web Print Service (Cloud)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6 mb-3" id="networkFields" style="display: @(ViewBag.PrinterMode == "network" ? "block" : "none");">
+                                            <div class="row">
+                                                <div class="col-8">
+                                                    <div class="form-group">
+                                                        <label class="text-muted small uppercase font-weight-bold">Dirección IP</label>
+                                                        <input type="text" name="printerIP" class="form-control bg-dark border-0 text-white" value="@ViewBag.PrinterIP" placeholder="192.168.1.100">
+                                                    </div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="form-group">
+                                                        <label class="text-muted small uppercase font-weight-bold">Puerto</label>
+                                                        <input type="number" name="printerPort" class="form-control bg-dark border-0 text-white" value="@ViewBag.PrinterPort">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <div class="form-group">
+                                                <label class="text-muted small uppercase font-weight-bold">Calidad de Imagen (DPI)</label>
+                                                <select name="printerDPI" class="form-control bg-dark border-0 text-white">
+                                                    <option value="72" selected="@(ViewBag.PrinterDPI == "72")">72 DPI (Rápido - Optimizado PDA)</option>
+                                                    <option value="150" selected="@(ViewBag.PrinterDPI == "150")">150 DPI (Equilibrado)</option>
+                                                    <option value="203" selected="@(ViewBag.PrinterDPI == "203")">203 DPI (Estándar Térmico)</option>
+                                                    <option value="300" selected="@(ViewBag.PrinterDPI == "300")">300 DPI (Alta Definición)</option>
+                                                </select>
+                                                <small class="text-muted small">Valores menores evitan saturar la caché del PDA.</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <div class="form-group">
+                                                <label class="text-muted small uppercase font-weight-bold">Ancho de Papel</label>
+                                                <select name="printerWidth" class="form-control bg-dark border-0 text-white">
+                                                    <option value="56" selected="@(ViewBag.PrinterWidth == "56")">56mm (PDA Estándar)</option>
+                                                    <option value="58" selected="@(ViewBag.PrinterWidth == "58")">58mm (Ticketera pequeña)</option>
+                                                    <option value="80" selected="@(ViewBag.PrinterWidth == "80")">80mm (Impresora de Barra)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-3 d-flex align-items-end">
+                                            <button type="submit" class="btn btn-primary-md btn-block mb-3">
+                                                <i class="fas fa-save mr-2"></i>Guardar Configuración
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+
+                                <div class="mt-4 p-3 rounded bg-primary-soft border border-primary-md">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-8">
+                                            <p class="text-white mb-0 small">
+                                                <i class="fas fa-microchip mr-2 text-primary-md"></i>
+                                                <strong>Optimización PDA Detectada:</strong> Al configurar un DPI bajo, el ticket se generará como una imagen ligera para asegurar una impresión rápida sin bloqueos en dispositivos móviles.
+                                            </p>
+                                        </div>
+                                        <div class="col-md-4 text-right">
+                                            <a href="@Url.Action("TicketPreview", "Settings")?print=true" target="_blank" class="btn btn-outline-light btn-sm">
+                                                <i class="fas fa-print mr-2"></i>PROBAR TICKET (DEMO)
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bg-dark-light {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    .bg-primary-soft {
+        background-color: rgba(187, 134, 252, 0.1);
+    }
+    .text-primary-md {
+        color: #bb86fc;
+    }
+    .bg-success-soft {
+        background-color: rgba(0, 200, 83, 0.1);
+    }
+    .bg-danger-soft {
+        background-color: rgba(255, 82, 82, 0.1);
+    }
+    .btn-primary-md {
+        background-color: #bb86fc;
+        color: #000;
+        font-weight: bold;
+    }
+    .btn-primary-md:hover {
+        background-color: #a370db;
+        color: #000;
+    }
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        function togglePrinterType(val) {
+            var fields = document.getElementById('networkFields');
+            if (val === 'network') {
+                fields.style.display = 'block';
+            } else {
+                fields.style.display = 'none';
+            }
+        }
+
+        function confirmSync() {
+            Swal.fire({
+                title: '¿Sincronizar con Producción?',
+                text: "Esto reemplazará todos tus datos locales (cargadores, clientes, etiquetas) con los datos del servidor de producción. Esta acción no se puede deshacer.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#bb86fc',
+                cancelButtonColor: '#ff0266',
+                confirmButtonText: 'Sí, sincronizar ahora',
+                cancelButtonText: 'Cancelar',
+                background: '#1e1e1e',
+                color: '#fff'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Sincronizando...',
+                        text: 'Por favor, no cierres esta ventana. Esto puede tardar unos segundos.',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        },
+                        background: '#1e1e1e',
+                        color: '#fff'
+                    });
+                    document.getElementById('syncForm').submit();
+                }
+            })
+        }
+    </script>
+}

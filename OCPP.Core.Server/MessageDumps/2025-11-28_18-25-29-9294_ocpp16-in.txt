@@ -1,0 +1,1 @@
+[2,"20251128222528-626-2500565649","FirmwareStatusNotification",{"status":"Idle"}]

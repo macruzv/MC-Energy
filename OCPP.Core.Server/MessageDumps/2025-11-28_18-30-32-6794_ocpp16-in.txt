@@ -1,0 +1,1 @@
+[2,"20251128223002-0007-2500565656","StatusNotification",{"status":"Available","info":"","errorCode":"NoError","vendorErrorCode":"00","connectorId":1}]

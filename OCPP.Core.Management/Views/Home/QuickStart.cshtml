@@ -1,0 +1,363 @@
+@using OCPP.Core.Database
+@using Microsoft.AspNetCore.Mvc.Localization
+@model ChargePointViewModel
+@inject IViewLocalizer Localizer
+@{
+    ViewData["Title"] = "Carga Rápida - Seleccionar Estación";
+    var registeredCustomers = ViewBag.Customers as List<Customer>;
+}
+
+<div class="mb-5">
+    <a href="~/" class="text-muted small"><i class="fas fa-home"></i> @Localizer["Overview"]</a>
+    <span class="mx-2 text-muted">/</span>
+    <span class="small font-weight-bold">Carga Rápida</span>
+</div>
+
+<div class="text-center mb-5">
+    <h1 class="display-4 font-weight-bold text-white mb-2">Carga Rápida</h1>
+    <p class="text-muted">Consulte un cliente registrado o ingrese los datos manualmente</p>
+</div>
+
+<div class="row justify-content-center mb-5">
+    <div class="col-md-8">
+        <div class="glass-panel p-5" style="border-radius: 32px; border: 1px solid rgba(255,255,255,0.1) !important;">
+            
+            <!-- Seleccionar Cliente (Obligatorio) -->
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <label class="small text-white-50 font-weight-bold mb-2 uppercase"><i class="fas fa-user-check mr-1 text-primary"></i> SELECCIONAR CLIENTE (OBLIGATORIO)</label>
+                    <select id="selCustomer" class="form-control form-control-lg bg-dark-soft text-white border-subtle rounded-pill px-4 select2-customer" onchange="fillCustomerData(this)" required>
+                        <option value="">-- Seleccione un cliente --</option>
+                        @if (registeredCustomers != null)
+                        {
+                            foreach (var c in registeredCustomers)
+                            {
+                                <option value="@c.CustomerId" 
+                                        data-id="@c.Identifier" 
+                                        data-tel="@c.Phone" 
+                                        data-eml="@c.Email">
+                                    @c.Name
+                                </option>
+                            }
+                        }
+                    </select>
+                    <hr class="border-subtle my-4">
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Campo Cédula Oculto -->
+                <div class="col-md-4 mb-3 d-none">
+                    <label class="small text-white-50 font-weight-bold mb-2 uppercase">CÉDULA</label>
+                    <input type="hidden" id="cust-id">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="small text-white-50 font-weight-bold mb-2 uppercase">TELÉFONO</label>
+                    <input type="text" id="cust-tel" class="form-control form-control-lg bg-transparent text-white border-subtle rounded-pill px-4" 
+                           placeholder="(000) 000-0000" oninput="applyPhoneMask(this)">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="small text-white-50 font-weight-bold mb-2 uppercase">CORREO ELECTRÓNICO</label>
+                    <input type="email" id="cust-eml" class="form-control form-control-lg bg-transparent text-white border-subtle rounded-pill px-4" 
+                           placeholder="cliente@ejemplo.com">
+                </div>
+            </div>
+            <div id="form-error" class="text-danger mt-3 d-none" style="font-size: 1.5rem; font-weight: bold;">
+                <i class="fas fa-exclamation-circle mr-2"></i> Debe seleccionar un cliente para continuar.
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="chargerStep">
+    <div class="text-center mb-4">
+        <h2 class="h3 font-weight-bold text-white">Seleccionar Cargador</h2>
+    </div>
+
+    <div class="row justify-content-center">
+        @if (Model.ChargePoints != null)
+        {
+            var onlineStatus = ViewBag.OnlineStatus as Dictionary<string, ChargePointStatus>;
+            foreach (var cp in Model.ChargePoints)
+            {
+                bool isOnline = onlineStatus != null && onlineStatus.ContainsKey(cp.ChargePointId);
+                <div class="col-md-4 mb-4">
+                    <div class="card bg-dark text-white border-0 shadow-lg h-100 station-card" 
+                         onclick="selectCharger('@cp.ChargePointId', '@cp.Name')"
+                         style="border-radius: 24px; cursor: pointer; transition: all 0.3s ease;">
+                        <div class="card-body p-4 text-center">
+                            <i class="fas fa-charging-station fa-3x mb-3 text-primary"></i>
+                            <h5 class="card-title font-weight-bold">@cp.Name</h5>
+                            <p class="card-text text-muted small mb-3">ID: @cp.ChargePointId</p>
+                            
+                            <div class="status-badge-container">
+                                @if (isOnline)
+                                {
+                                    <div class="badge badge-success rounded-pill px-3 py-2">En Línea</div>
+                                }
+                                else
+                                {
+                                    <div class="badge badge-secondary rounded-pill px-3 py-2">Fuera de Línea</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<div id="connectorStep" style="display: none;">
+    <div class="text-center mb-4">
+        <button class="btn btn-link text-primary mb-3" onclick="backToChargers()">
+            <i class="fas fa-arrow-left mr-1"></i> Volver a Cargadores
+        </button>
+        <h2 class="h3 font-weight-bold text-white" id="selectedChargerName">Seleccionar Conector</h2>
+    </div>
+
+    <div class="row justify-content-center">
+        @if (Model.ChargePoints != null)
+        {
+            var onlineStatus = ViewBag.OnlineStatus as Dictionary<string, ChargePointStatus>;
+            var allConnectors = ViewBag.AllConnectors as List<OCPP.Core.Database.ConnectorStatus>;
+            
+            foreach (var cp in Model.ChargePoints)
+            {
+                var stationConnectors = allConnectors?.Where(x => x.ChargePointId == cp.ChargePointId).OrderBy(x => x.ConnectorId).ToList();
+                if (stationConnectors != null && stationConnectors.Any())
+                {
+                    foreach (var conn in stationConnectors)
+                    {
+                        bool isOnline = onlineStatus != null && onlineStatus.ContainsKey(cp.ChargePointId);
+                        string status = "Desconectado";
+                        if (isOnline && onlineStatus[cp.ChargePointId].OnlineConnectors != null && onlineStatus[cp.ChargePointId].OnlineConnectors.ContainsKey(conn.ConnectorId))
+                        {
+                            status = onlineStatus[cp.ChargePointId].OnlineConnectors[conn.ConnectorId].Status.ToString();
+                        }
+
+                        <div class="col-md-4 mb-4 connector-group" data-cp="@cp.ChargePointId" style="display: none;">
+                            <div class="card bg-dark text-white border-0 shadow-lg h-100 station-card" 
+                                 onclick="selectStation('@cp.ChargePointId', '@conn.ConnectorId')"
+                                 style="border-radius: 32px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); background: rgba(255,255,255,0.03) !important; backdrop-filter: blur(10px);">
+                                <div class="card-body p-4 text-center">
+                                    <div class="mb-3 connector-visual-container" style="height: 120px; display: flex; align-items: center; justify-content: center; position: relative;">
+                                        <div class="connector-backlight"></div>
+                                        <img src="~/img/Pistola.png" style="max-height: 100%; width: auto; mix-blend-mode: screen; filter: drop-shadow(0 0 15px rgba(208, 188, 255, 0.3)); position: relative; z-index: 2;" alt="Conector">
+                                    </div>
+                                    <h5 class="card-title font-weight-bold mb-1" style="font-size: 1.5rem; text-transform: uppercase;">Conector #@conn.ConnectorId</h5>
+                                    <p class="card-text text-muted small mb-3">@(conn.ConnectorName ?? "Sin Nombre")</p>
+                                    
+                                    <div class="status-badge-container">
+                                        @if (status == "Available")
+                                        {
+                                            <div class="badge badge-success rounded-pill px-4 py-2" style="letter-spacing: 1px;">DISPONIBLE</div>
+                                        }
+                                        else if (status == "Preparing")
+                                        {
+                                            <div class="badge badge-info rounded-pill px-4 py-2" style="letter-spacing: 1px;">PREPARADO</div>
+                                        }
+                                        else if (status == "Charging")
+                                        {
+                                            <div class="badge badge-warning rounded-pill px-4 py-2" style="letter-spacing: 1px;">CARGANDO</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="badge badge-secondary rounded-pill px-4 py-2" style="letter-spacing: 1px;">@status.ToUpper()</div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            }
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function fillCustomerData(select) {
+            const selectedOption = select.options[select.selectedIndex];
+            if (!selectedOption.value) {
+                document.getElementById('cust-id').value = '';
+                document.getElementById('cust-tel').value = '';
+                document.getElementById('cust-eml').value = '';
+                return;
+            }
+
+            document.getElementById('cust-id').value = selectedOption.getAttribute('data-id') || '';
+            document.getElementById('cust-tel').value = selectedOption.getAttribute('data-tel') || '';
+            document.getElementById('cust-eml').value = selectedOption.getAttribute('data-eml') || '';
+            document.getElementById('form-error').classList.add('d-none');
+        }
+
+        function selectCharger(cpId, cpName) {
+            const customerSelect = document.getElementById('selCustomer');
+            const error = document.getElementById('form-error');
+
+            if (!customerSelect.value) {
+                error.classList.remove('d-none');
+                customerSelect.focus();
+                // Scroll to top to show the error if needed
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+
+            error.classList.add('d-none');
+
+            // Update UI
+            document.getElementById('chargerStep').style.display = 'none';
+            document.getElementById('connectorStep').style.display = 'block';
+            document.getElementById('selectedChargerName').innerText = cpName;
+
+            // Show only relevant connectors with a staggered animation
+            const groups = [...document.querySelectorAll('.connector-group')].filter(g => g.getAttribute('data-cp') === cpId);
+            const allGroups = document.querySelectorAll('.connector-group');
+            
+            allGroups.forEach(g => {
+                g.style.display = 'none';
+                g.classList.remove('animate-in');
+            });
+
+            groups.forEach((g, index) => {
+                g.style.display = 'block';
+                // Trigger animation after a tiny delay
+                setTimeout(() => {
+                    g.classList.add('animate-in');
+                }, index * 150);
+            });
+
+            // Scroll to the selection title
+            document.getElementById('connectorStep').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function backToChargers() {
+            document.getElementById('connectorStep').style.display = 'none';
+            document.getElementById('chargerStep').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function applyPhoneMask(input) {
+            let value = input.value.replace(/\D/g, '');
+            if (value.length > 10) value = value.slice(0, 10);
+            let formatted = '';
+            if (value.length > 0) {
+                formatted = '(' + value.slice(0, 3);
+                if (value.length > 3) {
+                    formatted += ') ' + value.slice(3, 6);
+                    if (value.length > 6) formatted += '-' + value.slice(6, 10);
+                }
+            }
+            input.value = formatted;
+        }
+
+        function selectStation(cpId, connectorId) {
+            const customerSelect = document.getElementById('selCustomer');
+            const customerName = customerSelect.options[customerSelect.selectedIndex].text;
+            const id = document.getElementById('cust-id').value;
+            const tel = document.getElementById('cust-tel').value;
+            const eml = document.getElementById('cust-eml').value;
+            const error = document.getElementById('form-error');
+
+            if (!customerSelect.value) {
+                error.classList.remove('d-none');
+                customerSelect.focus();
+                return;
+            }
+
+            error.classList.add('d-none');
+            const url = `@Url.Content("~/Home/Control")?id=${encodeURIComponent(cpId)}&ConnectorId=${encodeURIComponent(connectorId)}&cid=${encodeURIComponent(id)}&cnm=${encodeURIComponent(customerName)}&tel=${encodeURIComponent(tel)}&eml=${encodeURIComponent(eml)}`;
+            window.location.href = url;
+        }
+    </script>
+
+    <style>
+        .station-card:hover {
+            transform: translateY(-10px);
+            background: rgba(255,255,255,0.05) !important;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.5) !important;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .bg-dark-soft {
+            background: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        select.form-control {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1.5rem center;
+            background-size: 1em;
+        }
+
+        select option {
+            background-color: #1c1b1f;
+            color: white;
+        }
+
+        .border-subtle {
+            border-color: rgba(255,255,255,0.1) !important;
+        }
+
+        .border-subtle:focus {
+            border-color: var(--md-sys-color-primary) !important;
+            box-shadow: 0 0 0 0.2rem rgba(208, 188, 255, 0.25);
+            background: rgba(255,255,255,0.05) !important;
+        }
+
+        .charger-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.05) !important;
+            position: relative;
+            overflow: hidden;
+            border-radius: 28px !important;
+        }
+
+        /* New Animations and Visuals */
+        .connector-group {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .connector-group.animate-in {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .connector-backlight {
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            background: radial-gradient(circle, rgba(208, 188, 255, 0.15) 0%, rgba(208, 188, 255, 0) 70%);
+            border-radius: 50%;
+            z-index: 1;
+            animation: pulse-backlight 3s infinite ease-in-out;
+        }
+
+        @@keyframes pulse-backlight {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+        }
+
+        .station-card img {
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .station-card:hover img {
+            transform: scale(1.1) rotate(-5deg);
+        }
+    </style>
+}

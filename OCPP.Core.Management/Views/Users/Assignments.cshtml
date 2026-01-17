@@ -1,0 +1,255 @@
+@model OCPP.Core.Database.User
+@{
+    ViewData["Title"] = "Asignación de Cargadores";
+    var allChargePoints = (List<OCPP.Core.Database.ChargePoint>)ViewBag.AllChargePoints;
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white font-weight-bold mb-0">
+            <i class="fas fa-plug mr-2 text-primary-md"></i>Asignación de Cargadores
+        </h2>
+        <a asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
+            <i class="fas fa-arrow-left mr-2"></i>Volver
+        </a>
+    </div>
+
+    <div class="user-header-card mb-4 p-4 rounded-lg shadow-lg">
+        <div class="d-flex align-items-center">
+            <div class="avatar-circle-lg mr-4">@Model.Username.Substring(0, 1).ToUpper()</div>
+            <div>
+                <h3 class="text-white mb-1">@Model.Username</h3>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-envelope mr-2"></i>@Model.Email
+                    <span class="mx-2">•</span>
+                    <span class="text-primary-md">@string.Join(", ", Model.UserRoles.Select(ur => ur.Role.Name))</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <form asp-action="SaveAssignments" method="post" id="assignmentForm">
+        <input type="hidden" name="userId" value="@Model.UserId" />
+
+        <div class="controls-row mb-4">
+            <div class="search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="chargerSearch" class="form-control" placeholder="Buscar por ID o Nombre de cargador..." onkeyup="filterChargers()">
+            </div>
+            <div class="selection-status text-muted">
+                <span id="selected-count" class="text-primary-md font-weight-bold">0</span> Cargadores seleccionados
+            </div>
+        </div>
+
+        <div class="charger-grid">
+            @foreach (var cp in allChargePoints)
+            {
+                var isChecked = Model.UserChargePoints.Any(ucp => ucp.ChargePointId == cp.ChargePointId);
+                <div class="charger-card-item" data-id="@cp.ChargePointId.ToLower()" data-name="@(cp.Name?.ToLower())">
+                    <div class="charger-card @(isChecked ? "selected" : "")" onclick="toggleSelection(this, '@cp.ChargePointId')">
+                        <input type="checkbox" name="selectedChargePoints" value="@cp.ChargePointId" id="cb_@cp.ChargePointId" class="d-none" @(isChecked ? "checked" : "")>
+                        <div class="card-header-flex">
+                            <span class="charger-id">@cp.ChargePointId</span>
+                            <div class="selection-indicator">
+                                <i class="fas fa-check"></i>
+                            </div>
+                        </div>
+                        <div class="charger-name">@(string.IsNullOrEmpty(cp.Name) ? "Sin nombre definido" : cp.Name)</div>
+                        <div class="charger-comment small text-muted">@cp.Comment</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <div class="sticky-footer-actions p-3 rounded-lg mt-4 shadow-lg border border-secondary">
+            <div class="d-flex justify-content-end gap-3">
+                <button type="button" class="btn btn-outline-light mr-3" onclick="window.location.reload()">Descartar cambios</button>
+                <button type="submit" class="btn btn-primary-md px-5 py-2 rounded-pill font-weight-bold shadow">
+                    <i class="fas fa-save mr-2"></i>Guardar Asignaciones
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+    .user-header-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .avatar-circle-lg {
+        width: 70px;
+        height: 70px;
+        background: linear-gradient(135deg, var(--primary-md), #0056b3);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: bold;
+        color: white;
+        box-shadow: 0 4px 15px rgba(var(--primary-md-rgb), 0.3);
+    }
+
+    .search-wrapper {
+        position: relative;
+        flex-grow: 1;
+    }
+
+    .search-wrapper i {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #888;
+    }
+
+    .search-wrapper input {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding-left: 45px;
+        border-radius: 12px;
+        color: white;
+        height: 48px;
+    }
+
+    .search-wrapper input:focus {
+        background: rgba(0, 0, 0, 0.4);
+        border-color: var(--primary-md);
+        box-shadow: none;
+    }
+
+    .controls-row {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .charger-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+
+    .charger-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 20px;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        height: 100%;
+    }
+
+    .charger-card:hover {
+        background: rgba(255, 255, 255, 0.07);
+        border-color: rgba(255, 255, 255, 0.15);
+        transform: translateY(-2px);
+    }
+
+    .charger-card.selected {
+        background: rgba(var(--primary-md-rgb), 0.1);
+        border-color: var(--primary-md);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-header-flex {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .charger-id {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: #e6edf3;
+    }
+
+    .selection-indicator {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        color: white;
+        background: transparent;
+    }
+
+    .selected .selection-indicator {
+        background: var(--primary-md);
+        border-color: var(--primary-md);
+    }
+
+    .selection-indicator i {
+        font-size: 0.8rem;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .selected .selection-indicator i {
+        opacity: 1;
+    }
+
+    .charger-name {
+        color: #fff;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+
+    .sticky-footer-actions {
+        background: rgba(13, 17, 23, 0.8);
+        backdrop-filter: blur(15px);
+        position: sticky;
+        bottom: 20px;
+        z-index: 100;
+    }
+
+    .btn-primary-md {
+        background: var(--primary-md);
+        color: white;
+        border: none;
+    }
+
+    .btn-primary-md:hover {
+        background: #0056b3;
+    }
+</style>
+
+<script>
+    function toggleSelection(card, cpId) {
+        const checkbox = document.getElementById('cb_' + cpId);
+        card.classList.toggle('selected');
+        checkbox.checked = card.classList.contains('selected');
+        updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+        const count = document.querySelectorAll('.charger-card.selected').length;
+        document.getElementById('selected-count').innerText = count;
+    }
+
+    function filterChargers() {
+        const query = document.getElementById('chargerSearch').value.toLowerCase();
+        const items = document.querySelectorAll('.charger-card-item');
+        
+        items.forEach(item => {
+            const id = item.getAttribute('data-id');
+            const name = item.getAttribute('data-name');
+            if (id.includes(query) || (name && name.includes(query))) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    // Initial count
+    document.addEventListener('DOMContentLoaded', updateSelectedCount);
+</script>

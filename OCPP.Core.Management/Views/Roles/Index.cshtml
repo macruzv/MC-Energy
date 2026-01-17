@@ -1,0 +1,71 @@
+@model IEnumerable<OCPP.Core.Database.Role>
+@{
+    ViewData["Title"] = "Gestión de Roles";
+}
+
+<div class="container-fluid py-4">
+    <div class="glass-panel p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="text-white h4 mb-0">
+                <i class="fas fa-user-tag mr-2 text-primary-md"></i>Gestión de Roles y Permisos
+            </h2>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-dark table-hover border-0">
+                <thead>
+                    <tr class="text-muted small uppercase">
+                        <th class="border-0">Rol</th>
+                        <th class="border-0">Permisos Asignados</th>
+                        <th class="border-0 text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var role in Model)
+                    {
+                        <tr>
+                            <td class="align-middle">
+                                <span class="badge badge-primary-soft p-2 px-3">
+                                    <i class="fas fa-shield-alt mr-1"></i> @role.Name
+                                </span>
+                            </td>
+                            <td class="align-middle">
+                                <span class="text-muted">
+                                    @(role.RolePermissions?.Count ?? 0) permisos configurados
+                                </span>
+                            </td>
+                            <td class="text-right">
+                                <a href="@Url.Action("Permissions", new { id = role.RoleId })" class="btn btn-primary-md btn-sm">
+                                    <i class="fas fa-key mr-1"></i> Configurar Vistas
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+    }
+    .badge-primary-soft {
+        background: rgba(187, 134, 252, 0.1);
+        color: #bb86fc;
+        border: 1px solid rgba(187, 134, 252, 0.2);
+    }
+    .btn-primary-md {
+        background: #bb86fc;
+        color: #000;
+        font-weight: 600;
+        border: none;
+    }
+    .btn-primary-md:hover {
+        background: #a370db;
+    }
+</style>

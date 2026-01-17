@@ -1,0 +1,62 @@
+﻿﻿﻿﻿@using Microsoft.AspNetCore.Mvc.Localization
+@model ChargeTagViewModel
+@inject IViewLocalizer Localizer
+@{
+    ViewData["Title"] = @Localizer["Title"];
+}
+<br />
+
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <div>
+        <a href="~/" class="text-muted small"><i class="fas fa-home"></i> @Localizer["Overview"]</a>
+        <span class="mx-2 text-muted">/</span>
+        <span class="small font-weight-bold">@Localizer["ChargeTags"]</span>
+    </div>
+    <a class="btn-md btn-primary-md" href="@Url.Action("ChargeTag", new { id = "@" })">
+        <i class="fas fa-plus"></i> @Localizer["AddNew"]
+    </a>
+</div>
+
+@if (Model != null)
+{
+    <div class="glass-panel">
+        <div class="table-responsive">
+            <table id="dtChargeTags" class="table-premium">
+                <thead>
+                    <tr>
+                        <th>@Localizer["TagId"]</th>
+                        <th>@Localizer["TagName"]</th>
+                        <th>@Localizer["GroupName"]</th>
+                        <th>@Localizer["ExpiryDate"]</th>
+                        <th>@Localizer["Blocked"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.ChargeTags != null)
+                    {
+                        foreach (ChargeTag tag in Model.ChargeTags)
+                        {
+                            <tr class="table-row glass-row" style="cursor: pointer;" data-href='@Url.Action("ChargeTag", Constants.HomeController, new { id = tag.TagId })'>
+                                <td class="font-weight-bold">@tag.TagId</td>
+                                <td>@tag.TagName</td>
+                                <td class="text-muted">@tag.ParentTagId</td>
+                                <td class="text-muted small">@((tag.ExpiryDate != null) ? tag.ExpiryDate.Value.ToString((string)ViewBag.DatePattern) : "-")</td>
+                                <td>
+                                    @if (tag.Blocked == true)
+                                    {
+                                        <span class="badge badge-danger px-3 py-1" style="border-radius:100px;">Blocked</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-success px-3 py-1" style="border-radius:100px;">Active</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+

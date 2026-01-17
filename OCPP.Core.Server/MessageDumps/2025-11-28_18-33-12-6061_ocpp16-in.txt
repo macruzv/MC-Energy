@@ -1,0 +1,1 @@
+[2,"20251128223325-628-2500565652","BootNotification",{"firmwareVersion":"V|1e|0a|03","chargePointModel":"BlueSky","chargePointVendor":"BlueSky"}]

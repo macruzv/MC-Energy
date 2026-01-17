@@ -1,0 +1,71 @@
+﻿@using Microsoft.AspNetCore.Mvc.Localization
+@model ChargePointViewModel
+@inject IViewLocalizer Localizer
+@{
+    ViewData["Title"] = @Localizer["Title"];
+}
+
+<div class="mb-4 d-flex justify-content-between align-items-center">
+    <div>
+        <a href="~/" class="text-muted small"><i class="fas fa-home"></i> @Localizer["Overview"]</a>
+        <span class="mx-2 text-muted">/</span>
+        <span class="small font-weight-bold">@Localizer["ChargePoints"]</span>
+    </div>
+    <a class="btn-md btn-primary-md" href="@Url.Action("ChargePoint", new { id = "@" })">
+        <i class="fas fa-plus"></i> @Localizer["AddNew"]
+    </a>
+</div>
+
+@if (Model != null)
+{
+    <div class="glass-panel">
+        <h2 class="h5 mb-4 font-weight-bold">@Localizer["ChargePointManagement"]</h2>
+
+        <div class="table-responsive">
+            <table id="dtChargeTags" class="table-premium">
+                <thead>
+                    <tr>
+                        <th>@Localizer["ChargePointId"]</th>
+                        <th>@Localizer["Name"]</th>
+                        <th>Usuarios</th>
+                        <th>@Localizer["CreateDate"]</th>
+                        <th>@Localizer["Comment"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.ChargePoints != null)
+                    {
+                        foreach (ChargePoint cp in Model.ChargePoints)
+                        {
+                            <tr class="table-row glass-row" style="cursor: pointer;" onclick="location.href='@Url.Action("ChargePoint", Constants.HomeController, new { id = cp.ChargePointId })'">
+                                <td class="font-weight-bold">@cp.ChargePointId</td>
+                                <td>@cp.Name</td>
+                                <td>
+                                    <span class="badge badge-pill @(cp.UserChargePoints.Count > 0 ? "badge-primary" : "badge-secondary")">
+                                        @cp.UserChargePoints.Count
+                                    </span>
+                                </td>
+                                <td class="text-muted small">@((cp.CreateDateTime != null) ? cp.CreateDateTime.Value.ToString((string)ViewBag.DatePattern) : "-")</td>
+                                <td class="text-muted">@cp.Comment</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+
+@section Scripts {
+    <style>
+        .glass-row:hover {
+            background: rgba(210, 188, 255, 0.1) !important;
+            transition: background 0.2s;
+        }
+        .table-dark {
+            color: var(--md-sys-color-on-surface);
+        }
+    </style>
+}
+

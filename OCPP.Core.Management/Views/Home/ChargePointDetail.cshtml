@@ -1,0 +1,371 @@
+﻿@using Microsoft.AspNetCore.Mvc.Localization
+@model ChargePointViewModel
+@inject IViewLocalizer Localizer
+@{
+    ViewData["Title"] = @Localizer["Title"];
+}
+<br />
+
+@if (Model != null)
+{
+    @using (Html.BeginForm())
+    {
+        @Html.AntiForgeryToken()
+
+        <div class="mb-4">
+            <a href="@Url.Action("ChargePoint", new { id = "" })" class="text-muted small"><i class="fas fa-arrow-left"></i> @Localizer["BackToList"]</a>
+        </div>
+
+        <div class="glass-panel">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="h4 mb-0 font-weight-bold">
+                    <i class="fas fa-charging-station text-primary-md mr-2"></i>
+                    @if (Model != null)
+                    {
+                        @Localizer[(Model.CurrentId == "@") ? "AddNewChargePoint" : "EditChargePoint"]
+                    }
+                    else
+                    {
+                        @Localizer["EditChargePoint"]
+                    }
+                </h2>
+                <div class="d-flex gap-2">
+                     <button type="submit" class="btn-md btn-primary-md">
+                        <i class="fas fa-save"></i> @Localizer[(Model.CurrentId == "@") ? "SaveNew" : "Save"]
+                    </button>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label-md" for="ChargePointId">@Localizer["ChargePointIdLabel"]</label>
+                        @if (Model.CurrentId == "@")
+                        {
+                            <input type="text" class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 100)" data-val-length-max="100" data-val-required="@Localizer["RequiredField"]" id="ChargePointId" maxlength="100" name="ChargePointId" placeholder="@Localizer["ChargePointIdPlaceholder"]" value="@Model.ChargePointId">
+                            <span class="field-validation-valid text-danger small mt-1" data-valmsg-for="ChargePointId" data-valmsg-replace="true"></span>
+                        }
+                        else
+                        {
+                            <input type="text" readonly class="form-control-md w-100 text-muted" id="ChargePointId" name="ChargePointId" value="@Model.ChargePointId">
+                        }
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label-md" for="Name">@Localizer["NameLabel"]</label>
+                        <input class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 100)" data-val-length-max="100" data-val-required="@Localizer["RequiredField"]" id="Name" maxlength="100" name="Name" placeholder="@Localizer["NamePlaceholder"]" type="text" value="@Model.Name" />
+                        <span class="field-validation-valid text-danger small mt-1" data-valmsg-for="Name" data-valmsg-replace="true"></span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label-md" for="Comment">@Localizer["CommentLabel"]</label>
+                        <input class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 200)" data-val-length-max="200" id="Comment" maxlength="200" name="Comment" placeholder="@Localizer["CommentPlaceholder"]" type="text" value="@Model.Comment" />
+                    </div>
+                </div>
+
+                <div class="col-md-6 border-left border-secondary" style="border-left: 1px solid var(--glass-border) !important;">
+                    <div class="mb-4">
+                        <label class="form-label-md" for="Username">@Localizer["UsernameLabel"]</label>
+                        <input class="form-control-md w-100" id="Username" maxlength="50" name="Username" placeholder="@Localizer["UsernamePlaceholder"]" type="text" value="@Model.Username" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label-md" for="Password">@Localizer["PasswordLabel"]</label>
+                        <input class="form-control-md w-100" id="Password" maxlength="50" name="Password" placeholder="@Localizer["PasswordPlaceholder"]" type="password" value="@Model.Password" />
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label-md" for="ClientCertThumb">@Localizer["ClientCertThumbLabel"]</label>
+                        <input class="form-control-md w-100" id="ClientCertThumb" maxlength="100" name="ClientCertThumb" placeholder="@Localizer["ClientCertThumbPlaceholder"]" type="text" value="@Model.ClientCertThumb" />
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.CurrentId != "@" && Model.CreateDateTime.HasValue)
+            {
+                <div class="mt-4 pt-4 border-top" style="border-top: 1px solid var(--glass-border) !important;">
+                    <span class="text-muted small">@Localizer["Create Date"]: </span>
+                    <span class="font-weight-bold small">@Model.CreateDateTime.Value.ToString((string)ViewBag.DatePattern)</span>
+                </div>
+            }
+
+            <div class="mt-4 d-flex gap-3">
+                @if (Model.CurrentId != "@")
+                {
+                    <button type="button" class="btn btn-outline-danger btn-md mr-2" id="btnDelete" onclick="DeleteChargepoint()">
+                        <i class="fas fa-trash"></i> @Localizer["Delete"]
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-md mr-2" id="btnReset" onclick="ResetChargepoint()">
+                        <i class="fas fa-redo"></i> @Localizer["TitleReset"]
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-md" id="btnUnlock" onclick="UnlockConnector()">
+                        <i class="fas fa-lock-open"></i> @Localizer["TitleUnlockConnector"]
+                    </button>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(ViewBag.ErrorMsg))
+            {
+                <div class="alert alert-danger mt-4" style="background: rgba(229, 115, 115, 0.1); border: 1px solid #e57373; border-radius: 12px; color: #e57373;">
+                    <i class="fas fa-exclamation-circle mr-2"></i> @ViewBag.ErrorMsg
+                </div>
+            }
+        </div>
+        <div class="glass-panel mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="h5 mb-0 font-weight-bold">
+                    <i class="fas fa-users text-primary-md mr-2"></i>Usuarios con Acceso
+                </h3>
+                <div class="search-sm">
+                    <input type="text" id="userSearch" class="form-control-sm bg-dark border-secondary text-white" placeholder="Buscar usuario..." onkeyup="filterUsers()">
+                </div>
+            </div>
+            
+            <p class="text-muted small mb-4">Selecciona los usuarios que podrán ver y operar este cargador en sus respectivos dashboards.</p>
+
+            <div class="user-grid-container" style="max-height: 400px; overflow-y: auto; padding-right: 5px;">
+                <div class="row" id="userGrid">
+                    @if (Model.AvailableUsers != null)
+                    {
+                        foreach (var user in Model.AvailableUsers)
+                        {
+                            var isSelected = Model.SelectedUserIds != null && Model.SelectedUserIds.Contains(user.UserId);
+                            var isAdminUser = user.UserRoles.Any(ur => ur.Role.Name == "Administrador");
+                            
+                            <div class="col-md-4 mb-3 user-item" data-name="@user.Username.ToLower()">
+                                <div class="user-access-card @(isSelected ? "selected" : "") @(isAdminUser ? "disabled-admin" : "")" 
+                                     onclick="@(isAdminUser ? "" : $"toggleUser(this, {user.UserId})")">
+                                    
+                                    @if (isSelected || isAdminUser)
+                                    {
+                                        <input type="checkbox" name="SelectedUserIds" value="@user.UserId" id="user_@user.UserId" class="d-none" checked>
+                                    }
+                                    else
+                                    {
+                                        <input type="checkbox" name="SelectedUserIds" value="@user.UserId" id="user_@user.UserId" class="d-none">
+                                    }
+
+                                    <div class="d-flex align-items-center">
+                                        <div class="u-avatar mr-3">@user.Username.Substring(0, 1).ToUpper()</div>
+                                        <div class="flex-grow-1 overflow-hidden">
+                                            <div class="u-name text-truncate">@user.Username</div>
+                                            <div class="u-role small text-muted">@string.Join(", ", user.UserRoles.Select(ur => ur.Role.Name))</div>
+                                        </div>
+                                        @if (isAdminUser)
+                                        {
+                                            <i class="fas fa-shield-alt text-info ml-2" title="Administrador tiene acceso total"></i>
+                                        }
+                                        else
+                                        {
+                                            <div class="u-check ml-2">
+                                                <i class="fas fa-check-circle"></i>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        <input type="hidden" name="action" id="hidAction" value="" />
+
+        <style>
+            .user-access-card {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: 12px;
+                padding: 12px;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            .user-access-card:hover:not(.disabled-admin) {
+                background: rgba(255, 255, 255, 0.07);
+                border-color: rgba(255, 255, 255, 0.1);
+            }
+            .user-access-card.selected {
+                background: rgba(var(--primary-md-rgb), 0.1);
+                border-color: var(--primary-md);
+            }
+            .user-access-card.disabled-admin {
+                opacity: 0.8;
+                cursor: default;
+                border-color: rgba(23, 162, 184, 0.3);
+            }
+            .u-avatar {
+                width: 32px;
+                height: 32px;
+                background: var(--primary-md);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.9rem;
+                font-weight: bold;
+                color: white;
+            }
+            .u-name { font-weight: 500; font-size: 0.9rem; color: #fff; }
+            .u-check { color: transparent; transition: color 0.2s; }
+            .selected .u-check { color: var(--primary-md); }
+
+            .search-sm input {
+                border-radius: 15px;
+                padding: 2px 15px;
+                font-size: 0.85rem;
+            }
+        </style>
+
+        <script>
+            function toggleUser(card, userId) {
+                const checkbox = document.getElementById('user_' + userId);
+                card.classList.toggle('selected');
+                checkbox.checked = card.classList.contains('selected');
+            }
+
+            function filterUsers() {
+                const query = document.getElementById('userSearch').value.toLowerCase();
+                const items = document.querySelectorAll('.user-item');
+                items.forEach(item => {
+                    const name = item.getAttribute('data-name');
+                    if (name.includes(query)) {
+                        item.style.display = 'block';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            }
+        </script>
+    }
+
+
+
+    @section scripts {
+        @if (!string.IsNullOrWhiteSpace(Model.ChargePointId))
+        {
+            <script>
+            function ResetChargepoint() {
+                var dialog = new BootstrapDialog({
+                    title: '@Localizer["TitleReset"]',
+                    message: '@string.Format(Localizer["DialogReset"].Value, Model.Name)',
+                    spinicon: 'fa fa-spinner fa-fw',
+                    buttons: [{
+                        id: 'btnDialogReset',
+                        label: '@Localizer["TitleReset"]',
+                        icon: 'fas fa-redo',
+                        autospin: true,
+                        action: function (dialogRef) {
+                            dialogRef.enableButtons(false);
+                            dialogRef.setClosable(false);
+                            dialogRef.getModalBody().html('@Localizer["ExecuteReset"]');
+
+                            var xmlhttp = new XMLHttpRequest();
+                            xmlhttp.onreadystatechange = function () {
+                                if (xmlhttp.readyState == XMLHttpRequest.DONE) {
+                                    if (xmlhttp.status == 200) {
+                                        dialogRef.getModalBody().html(xmlhttp.responseText);
+                                    }
+                                    else {
+                                        dialogRef.getModalBody().html('@Localizer["ErrorReset"]');
+                                    }
+
+                                    dialogRef.setClosable(true);
+                                    dialogRef.enableButtons(true);
+                                    var $resetButton = dialog.getButton('btnDialogReset');
+                                    $resetButton.hide();
+                                    var $cancelButton = dialog.getButton('btnDialogCancel');
+                                    $cancelButton.text('@Localizer["Close"]');
+
+                                }
+                            };
+                            xmlhttp.open("GET", "@Html.Raw(Url.Content("~/API/Reset/" + Uri.EscapeDataString(Model.ChargePointId)))", true);
+                            xmlhttp.send();
+                        }
+                    }, {
+                        id: 'btnDialogCancel',
+                        label: '@Localizer["Cancel"]',
+                        action: function (dialogRef) {
+                            dialogRef.close();
+                        }
+                    }]
+                });
+                dialog.open();
+            }
+
+            function UnlockConnector() {
+                var dialog = new BootstrapDialog({
+                    title: '@Localizer["TitleUnlockConnector"]',
+                    message: '@string.Format(Localizer["DialogUnlockConnector"].Value, Model.Name)',
+                    spinicon: 'fa fa-spinner fa-fw',
+                    buttons: [{
+                        id: 'btnUnlock',
+                        label: '@Localizer["TitleUnlockConnector"]',
+                        icon: 'fas fa-lock-open',
+                        autospin: true,
+                        action: function (dialogRef) {
+                            dialogRef.enableButtons(false);
+                            dialogRef.setClosable(false);
+                            dialogRef.getModalBody().html('@Localizer["ExecuteUnlock"]');
+
+                            var xmlhttp = new XMLHttpRequest();
+                            xmlhttp.onreadystatechange = function () {
+                                if (xmlhttp.readyState == XMLHttpRequest.DONE) {
+                                    if (xmlhttp.status == 200) {
+                                        dialogRef.getModalBody().html(xmlhttp.responseText);
+                                    }
+                                    else {
+                                        dialogRef.getModalBody().html('@Localizer["ErrorUnlock"]');
+                                    }
+
+                                    dialogRef.setClosable(true);
+                                    dialogRef.enableButtons(true);
+                                    var $resetButton = dialog.getButton('btnUnlock');
+                                    $resetButton.hide();
+                                    var $cancelButton = dialog.getButton('btnDialogCancel');
+                                    $cancelButton.text('@Localizer["Close"]');
+
+                                }
+                            };
+                                xmlhttp.open("GET", "@Html.Raw(Url.Content("~/API/UnlockConnector/" + Uri.EscapeDataString(Model.ChargePointId)))", true);
+                            xmlhttp.send();
+                        }
+                    }, {
+                        id: 'btnDialogCancel',
+                        label: '@Localizer["Cancel"]',
+                        action: function (dialogRef) {
+                            dialogRef.close();
+                        }
+                    }]
+                });
+                dialog.open();
+            }
+            
+            function DeleteChargepoint() {
+                var dialog = new BootstrapDialog({
+                    title: '@Localizer["TitleDelete"]',
+                    message: '@Localizer["DialogDelete"]',
+                    //spinicon: 'fa fa-spinner fa-fw',
+                    buttons: [{
+                        id: 'btnDialogReset',
+                        label: '@Localizer["TitleDelete"]',
+                        icon: 'fas fa-trash',
+                        //autospin: true,
+                        action: function (dialogRef) {
+                            $("#hidAction").val('Delete');
+                            $("form").submit();
+                        }
+                    }, {
+                        id: 'btnDialogCancel',
+                        label: '@Localizer["Cancel"]',
+                        action: function (dialogRef) {
+                            dialogRef.close();
+                        }
+                    }]
+                });
+                dialog.open();
+            }
+            </script>
+        }
+    }
+}

@@ -1,0 +1,522 @@
+@using OCPP.Core.Database
+@{
+    ViewData["Title"] = "Panel de Control";
+    ChargePoint cp = ViewBag.ChargePoint;
+    ConnectorStatus connector = ViewBag.Connector;
+    Transaction activeTx = ViewBag.ActiveTransaction;
+    ChargePointStatus onlineStatus = ViewBag.OnlineStatus;
+    
+    if (cp == null || connector == null)
+    {
+        // Safety redirect or simple error message inside the layout
+        <div class="container py-5 text-center text-white">
+            <h3 class="text-danger"><i class="fas fa-exclamation-triangle mr-2"></i>Error de Acceso</h3>
+            <p>No se pudo cargar la información de la estación o el conector. Por favor intente de nuevo.</p>
+            <a href="~/" class="btn btn-primary-md rounded-pill px-4 mt-3">Volver al Inicio</a>
+        </div>
+        return;
+    }
+
+    bool isOnline = onlineStatus != null;
+    string currentStatus = "Desconectado";
+    string ocppStatus = "";
+    double chargeRate = 0;
+    
+    if (isOnline && onlineStatus.OnlineConnectors != null && onlineStatus.OnlineConnectors.ContainsKey(connector.ConnectorId))
+    {
+        var ocs = onlineStatus.OnlineConnectors[connector.ConnectorId];
+        currentStatus = ocs.Status.ToString();
+        ocppStatus = ocs.OcPPStatus ?? "";
+        chargeRate = ocs.ChargeRateKW ?? 0;
+    }
+    
+    // Logic Refinement: Recognize active charging even if status is simplified to "Occupied"
+    bool isCharging = (currentStatus == "Charging" || ocppStatus == "Charging" || ocppStatus == "SuspendedEVSE" || ocppStatus == "SuspendedEV" || chargeRate > 0);
+    bool canStart = (activeTx == null && (currentStatus == "Preparing" || currentStatus == "Occupied"));
+
+    string cid = Context.Request.Query["cid"];
+    string cnm = Context.Request.Query["cnm"];
+    string tel = Context.Request.Query["tel"];
+    string eml = Context.Request.Query["eml"];
+}
+
+<div class="container-fluid">
+    @if (!string.IsNullOrEmpty(cid))
+    {
+        <div class="row justify-content-center mb-4">
+            <div class="col-md-5">
+                <div class="glass p-3 px-4 d-flex align-items-center justify-content-between" style="border-radius: 20px;">
+                    <div>
+                        <small class="text-muted d-block text-uppercase font-weight-bold" style="letter-spacing: 1px;">Cliente Seleccionado</small>
+                        <span class="font-weight-bold text-primary">@(string.IsNullOrEmpty(cnm) ? cid : cnm)</span>
+                    </div>
+                    <div class="text-right">
+                        <small class="text-muted d-block">@tel</small>
+                        <small class="text-muted">@eml</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row">
+        <!-- Main Status Card -->
+        <div class="col-md-5">
+            <div class="card glass mb-4">
+                <div class="card-body text-center py-5" style="position: relative; z-index: 1;">
+                    <div class="card-circuit-overlay"></div>
+                    <div class="status-indicator-lg @(isOnline ? "online" : "offline") mb-4" style="width: 160px; height: 160px;">
+                        <img src="@Url.Content("~/img/Pistola.png")" style="width: 100%; height: auto; position: relative; z-index: 2; mix-blend-mode: screen; @(isOnline ? "filter: drop-shadow(0 0 20px rgba(0, 255, 128, 0.3));" : "filter: grayscale(1) opacity(0.5);")" />
+                    </div>
+                    <h2 class="mb-1 font-weight-bold" style="font-size: 2.8rem; text-transform: uppercase; letter-spacing: 2px;">CONECTOR #@connector.ConnectorId</h2>
+                    <p class="text-muted" style="font-size: 1.2rem;">@(connector.ConnectorName ?? "Sin Nombre")</p>
+                    
+                    <div class="status-badge-premium mt-4">
+                        <span id="status-text">@currentStatus</span>
+                    </div>
+
+                    <div id="control-actions" class="mt-5 d-flex flex-column align-items-center gap-3">
+                        @if (activeTx == null)
+                        {
+                            <div class="w-100 mb-3 text-left @(!string.IsNullOrEmpty(cid) ? "d-none" : "")">
+                                <label class="small text-muted font-weight-bold mb-2"><i class="fas fa-id-card mr-1"></i> SELECCIONAR TARJETA (RFID)</label>
+                                <select id="selTag" class="form-control bg-transparent text-white border-subtle rounded-pill px-4" onchange="updateCustomerName(this)">
+                                    <option value="21222122" class="bg-dark">Sin Tarjeta (Temporal)</option>
+                                    @if (ViewBag.Tags != null)
+                                    {
+                                        foreach (var tag in ViewBag.Tags as List<OCPP.Core.Database.ChargeTag>)
+                                        {
+                                            <option value="@tag.TagId" data-customer="@(tag.Customer?.Name ?? "Sin Cliente")" class="bg-dark">
+                                                @tag.TagId (@(tag.TagName ?? "Sin Nombre"))
+                                            </option>
+                                        }
+                                    }
+                                </select>
+                                <div id="selected-customer" class="mt-2 small text-primary-md font-weight-bold d-none">
+                                    <i class="fas fa-user mr-1"></i> Cliente: <span id="cust-name"></span>
+                                </div>
+                            </div>
+
+                            <button id="btnStart" class="btn btn-primary btn-lg px-5 rounded-pill shadow-glow @(canStart ? "" : "disabled") w-100" 
+                                    @(canStart ? "onclick=StartCharging()" : "disabled")>
+                                <i class="fas fa-play mr-2"></i> INICIAR CARGA
+                            </button>
+                            @if (!canStart)
+                            {
+                                <div id="start-warning" class="mt-1 text-warning small text-center">
+                                    @if (currentStatus == "Available")
+                                    {
+                                        <i class="fas fa-plug mr-1"></i> <text>Por favor, conecte el vehículo para iniciar</text>
+                                    }
+                                    else if (currentStatus == "Preparing" || currentStatus == "Occupied")
+                                    {
+                                        <i class="fas fa-check-circle mr-1"></i> <text>Vehículo detectado, listo para iniciar</text>
+                                    }
+                                    else
+                                    {
+                                        <i class="fas fa-exclamation-circle mr-1"></i> <text>Cargador fuera de línea o no disponible (@currentStatus)</text>
+                                    }
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            @if (!string.IsNullOrEmpty(activeTx.CustomerIdentifier))
+                            {
+                                <div class="badge badge-info-soft py-2 px-4 rounded-pill mb-3">
+                                    <i class="fas fa-user-check mr-2"></i> SESIÓN: @activeTx.CustomerIdentifier
+                                </div>
+                            }
+
+                            @if (isCharging || currentStatus == "Finishing" || true) // Allow stop always if activeTx exists
+                            {
+                                <button id="btnStop" class="btn btn-danger btn-lg px-5 rounded-pill shadow-glow-danger w-100" onclick="StopCharging('@activeTx.TransactionId', @connector.ConnectorId)">
+                                    <i class="fas fa-stop mr-2"></i> PARAR CARGA
+                                </button>
+                                
+                                @if (!isCharging && currentStatus != "Finishing")
+                                {
+                                    <div class="w-100 mt-2 text-center text-muted small">
+                                        <i class="fas fa-spinner fa-spin mr-1"></i> Esperando inicio físico...
+                                    </div>
+                                }
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Persistence Log -->
+            <div class="card glass">
+                <div class="card-header border-0 bg-transparent">
+                    <h5 class="mb-0"><i class="fas fa-history mr-2"></i> Persistencia de Datos</h5>
+                </div>
+                <div class="card-body p-0" id="persistence-container">
+                    <div class="list-group list-group-flush bg-transparent">
+                        @if (activeTx != null)
+                        {
+                            <div class="list-group-item bg-transparent border-light d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted d-block">Inicio de Sesión</small>
+                                    <span>@activeTx.StartTime.ToLocalTime().ToString("t")</span>
+                                </div>
+                                <span class="badge badge-success badge-pill"><i class="fas fa-check"></i></span>
+                            </div>
+                            <div class="list-group-item bg-transparent border-light d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted d-block">Última Sincronización</small>
+                                    <span id="sync-time">@(connector.LastMeterTime?.ToLocalTime().ToString("t") ?? "N/A")</span>
+                                </div>
+                                <span class="badge badge-success badge-pill"><i class="fas fa-check"></i></span>
+                            </div>
+                            <div class="list-group-item bg-transparent border-0 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <small class="text-muted d-block">Lectura Actual</small>
+                                    <span id="meter-val">@(activeTx.MeterStop ?? activeTx.MeterStart) kWh</span>
+                                </div>
+                                <i class="fas fa-sync fa-spin text-info"></i>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="p-4 text-center text-muted">
+                                No hay sesión activa para rastrear resiliencia energética.
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Side -->
+        <div class="col-md-7">
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card glass text-center py-4">
+                        <small class="text-uppercase text-muted font-weight-bold">Potencia (kW)</small>
+                        <h1 class="display-4 mt-2" id="val-kw">@(isOnline && onlineStatus.OnlineConnectors.ContainsKey(connector.ConnectorId) ? onlineStatus.OnlineConnectors[connector.ConnectorId].ChargeRateKW?.ToString("0.0") ?? "0.0" : "0.0")</h1>
+                        <div class="progress mx-5 mt-2" style="height: 4px;">
+                            <div class="progress-bar bg-info" style="width: 70%"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card glass text-center py-4">
+                        <small class="text-uppercase text-muted font-weight-bold">Energía (kWh)</small>
+                        <h1 class="display-4 mt-2" id="val-kwh">@(activeTx != null ? ((activeTx.MeterStop ?? activeTx.MeterStart) - activeTx.MeterStart).ToString("0.0") : "0.0")</h1>
+                        <p class="mb-0 text-info">Resiliencia OK <i class="fas fa-shield-alt"></i></p>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="card glass p-4" id="timeline-container">
+                        <h5>Seguimiento de Sesión</h5>
+                        <div class="mt-4" style="height: 250px; border-left: 2px solid var(--md-sys-color-outline-variant); margin-left: 20px;">
+                            <div class="timeline-item">
+                                <div class="timeline-marker bg-success"></div>
+                                <div class="timeline-content">
+                                    <h6 class="mb-0">Manguera Conectada</h6>
+                                    <small class="text-muted">Listo para autorizar</small>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-marker @(activeTx != null ? "bg-info" : "bg-secondary")"></div>
+                                <div class="timeline-content">
+                                    <h6 class="mb-0">Carga Iniciada</h6>
+                                    <small class="text-muted">Registro activo en DB</small>
+                                </div>
+                            </div>
+                            <div class="timeline-item current">
+                                <div class="timeline-marker @(isOnline && currentStatus == "Charging" ? "bg-primary pulse" : "bg-secondary")"></div>
+                                <div class="timeline-content">
+                                    <h6 class="mb-0">Transmitiendo Datos</h6>
+                                    <small class="text-muted">Sincronización persistente activa</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function updateCustomerName(select) {
+        const option = select.options[select.selectedIndex];
+        const custName = option.getAttribute('data-customer');
+        const container = document.getElementById('selected-customer');
+        const nameSpan = document.getElementById('cust-name');
+        
+        if (custName && custName !== 'Sin Cliente') {
+            nameSpan.innerText = custName;
+            container.classList.remove('d-none');
+        } else {
+            container.classList.add('d-none');
+        }
+    }
+
+    function StartCharging() {
+        const cid = '@cid';
+        const tel = '@tel';
+        const eml = '@eml';
+        const tag = document.getElementById('selTag')?.value || '21222122';
+        
+        Swal.fire({
+            title: 'Iniciar Carga',
+            text: `¿Deseas iniciar la carga con la tarjeta ${tag}?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, iniciar',
+            background: '#1c1b1f',
+            color: '#fff',
+            confirmButtonColor: '#d0bcff',
+            cancelButtonColor: '#49454f'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({ 
+                    title: 'Enviando...', 
+                    html: 'Comunicando con el cargador. Por favor, espere...',
+                    background: '#1c1b1f',
+                    color: '#fff',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading() 
+                });
+                
+                let apiUrl = `@Url.Content("~/API/RemoteStart/")@(cp.ChargePointId)?cId=@(connector.ConnectorId)&tag=${encodeURIComponent(tag)}`;
+                if (cid) apiUrl += `&customerId=${encodeURIComponent(cid)}&customerPhone=${encodeURIComponent(tel)}&customerEmail=${encodeURIComponent(eml)}`;
+
+                fetch(apiUrl)
+                    .then(r => r.text())
+                    .then(msg => {
+                        if (msg.includes('aceptado')) {
+                            Swal.fire({
+                                title: '¡Comando Aceptado!',
+                                text: 'El cargador ha recibido la orden de inicio.',
+                                icon: 'success',
+                                background: '#1c1b1f',
+                                color: '#fff',
+                                confirmButtonColor: '#d0bcff'
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            Swal.fire({ 
+                                title: 'Error', 
+                                text: msg, 
+                                icon: 'error',
+                                background: '#1c1b1f',
+                                color: '#fff'
+                            });
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire({ 
+                            title: 'Error de Red', 
+                            text: 'No se pudo comunicar con el servidor.', 
+                            icon: 'error',
+                            background: '#1c1b1f',
+                            color: '#fff'
+                        });
+                    });
+            }
+        });
+    }
+
+    function StopCharging(tId, cId) {
+        Swal.fire({
+            title: 'Detener Carga',
+            text: "¿Estás seguro de detener la sesión?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#f44336',
+            cancelButtonColor: '#49454f',
+            confirmButtonText: 'Sí, parar',
+            background: '#1c1b1f',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({ 
+                    title: 'Parando...', 
+                    background: '#1c1b1f',
+                    color: '#fff',
+                    didOpen: () => Swal.showLoading() 
+                });
+                fetch(`@Url.Content("~/API/RemoteStop/")@cp.ChargePointId?tId=${tId}&cId=${cId}`)
+                    .then(r => r.text())
+                    .then(msg => {
+                        Swal.fire({
+                            title: 'Resultado',
+                            text: msg,
+                            icon: 'info',
+                            background: '#1c1b1f',
+                            color: '#fff',
+                            showCancelButton: true,
+                            confirmButtonText: 'Imprimir Ticket',
+                            cancelButtonText: 'Cerrar'
+                        }).then((choice) => {
+                            if (choice.isConfirmed) {
+                                window.open(`@Url.Content("~/Home/Ticket/")${tId}?print=true`, '_blank');
+                            }
+                            location.reload();
+                        });
+                    });
+            }
+        });
+    }
+
+    // Real-time status polling for better responsiveness
+    setInterval(() => {
+        if (!Swal.isVisible()) {
+            fetch(window.location.href)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    // Update only specific parts to avoid flicker
+                    const newStatus = doc.getElementById('status-text').innerHTML;
+                    const newBtnContainer = doc.getElementById('control-actions');
+                    const newPersistence = doc.getElementById('persistence-container');
+                    const newTimeline = doc.getElementById('timeline-container');
+                    const newStatusIndicator = doc.querySelector('.status-indicator-lg');
+                    
+                    if (document.getElementById('status-text').innerHTML !== newStatus) {
+                        document.getElementById('status-text').innerHTML = newStatus;
+                    }
+                    
+                    const currentBtnContainer = document.getElementById('control-actions');
+                    if (currentBtnContainer && newBtnContainer && currentBtnContainer.innerHTML.trim() !== newBtnContainer.innerHTML.trim()) {
+                        currentBtnContainer.innerHTML = newBtnContainer.innerHTML;
+                    }
+
+                    const currentPersistence = document.getElementById('persistence-container');
+                    if (currentPersistence && newPersistence && currentPersistence.innerHTML.trim() !== newPersistence.innerHTML.trim()) {
+                        currentPersistence.innerHTML = newPersistence.innerHTML;
+                    }
+
+                    const currentTimeline = document.getElementById('timeline-container');
+                    if (currentTimeline && newTimeline && currentTimeline.innerHTML.trim() !== newTimeline.innerHTML.trim()) {
+                        currentTimeline.innerHTML = newTimeline.innerHTML;
+                    }
+
+                    if (newStatusIndicator) {
+                        const currentIndicator = document.querySelector('.status-indicator-lg');
+                        if (currentIndicator && currentIndicator.className !== newStatusIndicator.className) {
+                            currentIndicator.className = newStatusIndicator.className;
+                            const img = currentIndicator.querySelector('img');
+                            const newImg = newStatusIndicator.querySelector('img');
+                            if (img && newImg) img.style.filter = newImg.style.filter;
+                        }
+                    }
+
+                    // Update metrics
+                    ['val-kw', 'val-kwh', 'sync-time', 'meter-val'].forEach(id => {
+                        const oldEl = document.getElementById(id);
+                        const newEl = doc.getElementById(id);
+                        if (oldEl && newEl && oldEl.innerHTML !== newEl.innerHTML) {
+                            oldEl.innerHTML = newEl.innerHTML;
+                        }
+                    });
+                })
+                .catch(err => console.warn("Poll error:", err));
+        }
+    }, 3000);
+</script>
+
+<style>
+    :root {
+        --glass-bg: rgba(255, 255, 255, 0.03);
+        --glass-border: rgba(255, 255, 255, 0.08);
+        --glass-blur: blur(20px);
+        --accent-glow: rgba(208, 188, 255, 0.4);
+    }
+
+    .glass {
+        background: var(--glass-bg) !important;
+        backdrop-filter: var(--glass-blur) !important;
+        -webkit-backdrop-filter: var(--glass-blur) !important;
+        border: 1px solid var(--glass-border) !important;
+        border-radius: 32px !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
+        color: #fff !important;
+    }
+
+    .card { border: none; }
+    .card-header { border-bottom: 1px solid var(--glass-border); }
+    .list-group-item { background: transparent !important; color: #fff !important; border-color: var(--glass-border) !important; }
+
+    .status-indicator-lg { 
+        width: 120px; height: 120px; border-radius: 50%; 
+        display: inline-flex; align-items: center; justify-content: center; 
+        margin-bottom: 24px;
+        background: rgba(255,255,255,0.05);
+        position: relative;
+    }
+    
+    .status-indicator-lg.online::after {
+        content: ''; position: absolute; width: 130%; height: 130%;
+        border-radius: 50%; border: 2px solid rgba(0, 255, 128, 0.2);
+        animation: pulse-ring 2s infinite;
+    }
+
+    @@keyframes pulse-ring {
+        0% { transform: scale(0.8); opacity: 0.5; }
+        100% { transform: scale(1.3); opacity: 0; }
+    }
+
+    .status-indicator-lg.online { color: #00ff80; }
+    .status-indicator-lg.offline { color: #ff4040; }
+    
+    .status-badge-premium { 
+        background: rgba(208, 188, 255, 0.1); 
+        border: 1px solid rgba(208, 188, 255, 0.2); 
+        padding: 14px 40px; border-radius: 100px; 
+        display: inline-block; font-weight: 700; font-size: 1.2rem; 
+        letter-spacing: 2px; color: #d0bcff;
+        text-transform: uppercase;
+        box-shadow: 0 0 20px rgba(208, 188, 255, 0.1);
+    }
+    
+    .shadow-glow { 
+        background: linear-gradient(135deg, #d0bcff 0%, #a88dff 100%) !important;
+        border: none !important;
+        box-shadow: 0 0 30px rgba(208, 188, 255, 0.4) !important;
+        color: #381e72 !important; font-weight: 800 !important;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .shadow-glow:hover { transform: scale(1.05); box-shadow: 0 0 40px rgba(208, 188, 255, 0.6) !important; }
+    
+    .shadow-glow.disabled, .shadow-glow:disabled {
+        background: rgba(255,255,255,0.05) !important;
+        box-shadow: none !important;
+        color: rgba(255,255,255,0.2) !important;
+        cursor: not-allowed;
+        transform: none !important;
+    }
+
+    .shadow-glow-danger { 
+        background: linear-gradient(135deg, #ff5252 0%, #d32f2f 100%) !important;
+        border: none !important;
+        box-shadow: 0 0 30px rgba(255, 82, 82, 0.4) !important;
+        color: #fff !important; font-weight: 800 !important;
+    }
+
+    .timeline-item { position: relative; padding-left: 50px; padding-bottom: 40px; }
+    .timeline-marker { 
+        position: absolute; left: -11px; top: 0; 
+        width: 22px; height: 22px; border-radius: 50%; 
+        border: 4px solid #1c1b1f; 
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    
+    .display-4 { font-weight: 800; letter-spacing: -2px; }
+    .text-info { color: #81d4fa !important; }
+    .text-primary-md { color: var(--primary-md) !important; }
+    .badge-info-soft {
+        background: rgba(208, 188, 255, 0.1);
+        color: #d0bcff;
+        border: 1px solid rgba(208, 188, 255, 0.2);
+    }
+</style>
+}

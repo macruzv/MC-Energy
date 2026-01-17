@@ -1,0 +1,131 @@
+@model OCPP.Core.Database.Transaction
+@using OCPP.Core.Database
+@{
+    Layout = null;
+    double energyKWh = 0;
+    if (Model.MeterStop.HasValue) 
+    {
+        energyKWh = (Model.MeterStop.Value - Model.MeterStart);
+    }
+    else if (Model.TransactionId == 0) // Demo data
+    {
+        energyKWh = 12.5;
+    }
+    
+    decimal pricePerKWh = decimal.Parse(ViewBag.PricePerKWh ?? "0.00");
+    decimal total = (decimal)energyKWh * pricePerKWh;
+}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprobante #@Model.TransactionId</title>
+    @{
+        string printerWidth = ViewBag.PrinterWidth ?? "56";
+        string printerDPI = ViewBag.PrinterDPI ?? "150";
+        // Convert mm to pixels roughly if needed, but for styling we stick to mm
+        // We can adjust font size based on DPI if desired
+        string fontSize = "10pt";
+        if (printerDPI == "72") fontSize = "9pt"; // Slightly smaller for low res
+        else if (printerDPI == "300") fontSize = "11pt";
+    }
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            width: @(printerWidth)mm;
+            font-size: @(fontSize);
+            line-height: 1.1;
+        }
+
+        .receipt {
+            padding: 0;
+            width: 100%;
+        }
+
+        .line {
+            white-space: pre; /* Mantiene espacios para alineación manual */
+            display: block;
+            width: 100%;
+            margin: 0;
+        }
+
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .separator { border-top: 1px dashed #000; margin: 2mm 0; }
+        .double-separator { border-top: 1px double #000; margin: 2mm 0; }
+
+        @@media print {
+            .no-print { display: none; }
+            body { width: @(printerWidth)mm; }
+        }
+    </style>
+</head>
+<body onload="if(window.location.search.includes('print')) setTimeout(() => { window.print(); window.close(); }, 300);" onafterprint="window.close()">
+
+    <div class="receipt">
+        <div class="center bold">
+            <span style="font-size: 12pt;">@ViewBag.CompanyName</span><br>
+            <span style="font-size: 8pt;">@ViewBag.CompanyAddress</span>
+        </div>
+        
+        <div class="separator"></div>
+        <div class="center bold">COMPROBANTE DE CARGA</div>
+        <div class="separator"></div>
+
+        <div class="line">TRX: #@(Model.TransactionId == 0 ? "DEMO-001" : Model.TransactionId.ToString())</div>
+        <div class="line">FECHA: @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</div>
+        <div class="line">CARG.: @Model.ChargePointId</div>
+        <div class="line">CONEC: Boca #@Model.ConnectorId</div>
+
+        @if (!string.IsNullOrEmpty(ViewBag.CustomerName) || !string.IsNullOrEmpty(Model.CustomerIdentifier))
+        {
+            <div class="separator"></div>
+            <div class="line">@(ViewBag.CustomerName ?? Model.CustomerIdentifier)</div>
+            @if (!string.IsNullOrEmpty(Model.CustomerPhone))
+            {
+                <div class="line">TEL: @Model.CustomerPhone</div>
+            }
+        }
+        
+        <div class="separator"></div>
+        
+        <div class="line">LECT. INICIAL: @Model.MeterStart.ToString("N3") kWh</div>
+        <div class="line">LECT. FINAL:   @(Model.MeterStop?.ToString("N3") ?? "-") kWh</div>
+        <div class="separator"></div>
+        
+        <div class="line bold" style="font-size: 11pt;">CONSUMO: @energyKWh.ToString("F2") kWh</div>
+        <div class="line">PRECIO/kWh: $@pricePerKWh.ToString("F2")</div>
+        
+        <div class="separator"></div>
+        <div class="center bold" style="font-size: 14pt; border: 1px solid #000; padding: 1mm;">
+            TOTAL: $@total.ToString("F2")
+        </div>
+        <div class="separator"></div>
+
+        <div class="center" style="font-size: 8pt;">
+            *** GRACIAS POR CARGAR ***<br>
+            Ahorraste @(energyKWh * 0.4)kg CO2<br>
+            ¡Vuelva pronto!
+        </div>
+
+        <div class="center" style="font-size: 7pt; margin-top: 5mm;">
+            No es una factura legal.
+        </div>
+    </div>
+
+    <div class="no-print" style="position: fixed; bottom: 10px; left: 10px; right: 10px; text-align: center;">
+        <button onclick="window.print()" style="padding: 12px 24px; background: #000; color: #fff; border: none; border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+            <i class="fas fa-print"></i> RE-IMPRIMIR
+        </button>
+    </div>
+
+    </div>
+</body>
+</html>

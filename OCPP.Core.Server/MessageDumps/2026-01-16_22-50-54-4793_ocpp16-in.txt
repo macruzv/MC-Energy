@@ -1,0 +1,1 @@
+[2,"ef3a38f8-2fa3-4a8a-91d4-26f7f4898bc8","StartTransaction",{"connectorId":1,"idTag":"21222122","meterStart":0,"timestamp":"2026-01-17T02:50:54Z"}]
