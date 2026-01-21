@@ -139,11 +139,11 @@
             </div>
         </div>
 
-        <!-- Charge Points Grid (Secondary) -->
+        <!-- Charge Points Grid (Secondary)
         <div class="dashboard-section">
             <h2 class="h6 mb-3 font-weight-bold text-muted">Estado de Conectores</h2>
             <div class="cp-grid">
-                @foreach (ChargePointsOverviewViewModel cpvm in Model.ChargePoints.Take(4))
+                @foreach (ChargePointsOverviewViewModel cpvm in Model.ChargePoints.Where(x => x.ConnectorId > 0).Take(4))
                 {
                     string statusClass = cpvm.ConnectorStatus == ConnectorStatusEnum.Occupied ? "status-charging" : (cpvm.Online ? "status-available" : "status-offline");
                     <div class="cp-card" style="padding: 16px; border-radius: 16px;" onclick="location.href='@Url.Content($"~/Home/Control?id={Uri.EscapeDataString(cpvm.ChargePointId)}&connectorId={cpvm.ConnectorId}")'">
@@ -164,7 +164,7 @@
                     </div>
                 }
             </div>
-        </div>
+        </div> -->
     }
     else
     {
@@ -193,7 +193,7 @@
     }
 }
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="~/lib/chartjs/chart.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             @if (Model.EnergyHistory != null && Model.EnergyHistory.Any()) {

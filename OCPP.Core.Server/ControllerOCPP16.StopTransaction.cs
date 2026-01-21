@@ -190,6 +190,7 @@ namespace OCPP.Core.Server
                                     transaction.StopReason = stopTransactionRequest.Reason.ToString();
                                     transaction.StopTime = stopTransactionRequest.Timestamp.UtcDateTime;
                                     DbContext.SaveChanges();
+                                    Logger.LogInformation("StopTransaction => Persisted final meter value {0} to Transaction {1} [CP={2}]", transaction.MeterStop, transaction.TransactionId, ChargePointStatus?.Id);
                                 }
                             }
                             else

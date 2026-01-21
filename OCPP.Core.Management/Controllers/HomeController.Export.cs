@@ -29,7 +29,6 @@ using OCPP.Core.Database;
 using OCPP.Core.Management.Models;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
-using DocumentFormat.OpenXml.InkML;
 
 namespace OCPP.Core.Management.Controllers
 {
@@ -38,6 +37,7 @@ namespace OCPP.Core.Management.Controllers
         private const char DefaultCSVSeparator = ';';
 
         [Authorize]
+        [HttpGet("/Home/Export/{Id?}/{ConnectorId?}")]
         public IActionResult Export(string Id, string ConnectorId)
         {
             try
@@ -69,6 +69,7 @@ namespace OCPP.Core.Management.Controllers
         }
 
         [Authorize]
+        [HttpGet("/Home/ExportXlsx/{Id?}/{ConnectorId?}")]
         public IActionResult ExportXlsx(string Id, string ConnectorId)
         {
             try
@@ -211,7 +212,17 @@ namespace OCPP.Core.Management.Controllers
                 }
             }
 
-            worksheet.Columns().AdjustToContents();
+            // AdjustToContents() commented out to prevent crashes on Linux/Mac/Docker environments missing fonts.
+            /*
+            try
+            {
+                worksheet.Columns().AdjustToContents();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "CreateSpreadsheet: Error adjusting columns to contents");
+            }
+            */
 
             return workbook;
         }

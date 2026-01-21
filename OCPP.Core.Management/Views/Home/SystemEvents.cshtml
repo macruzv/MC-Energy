@@ -56,6 +56,7 @@
             <div class="col-md-2 mb-3">
                 <label class="small text-muted font-weight-bold text-uppercase">Mostrar</label>
                 <select name="pageSize" class="form-control bg-transparent text-white border-secondary" onchange="document.getElementById('filterForm').submit()">
+                    <option value="10" selected="@(Model.PageSize == 10)">10 filas</option>
                     <option value="25" selected="@(Model.PageSize == 25)">25 filas</option>
                     <option value="50" selected="@(Model.PageSize == 50)">50 filas</option>
                     <option value="100" selected="@(Model.PageSize == 100)">100 filas</option>
@@ -135,9 +136,11 @@
                                 </span>
                             </td>
                             <td>
-                                @if (!string.IsNullOrEmpty(item.ErrorCode))
+                                @if (!string.IsNullOrEmpty(item.ErrorCode) && item.ErrorCode != "NoError")
                                 {
-                                    <span class="text-danger font-weight-bold"><i class="fas fa-exclamation-triangle mr-1"></i> @item.ErrorCode</span>
+                                    <a href="@Url.Action("Diagnostics", new { search = item.ErrorCode })" class="text-danger font-weight-bold" title="Ver diagnóstico técnico">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i> @item.ErrorCode
+                                    </a>
                                 }
                                 else
                                 {
@@ -204,7 +207,7 @@
         <div class="modal-content glass" style="background: #1c1b1f; border: 1px solid var(--glass-border);">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title text-white">Detalle del Evento</h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close text-white" aria-label="Close" onclick="hideEventModal()">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -239,13 +242,47 @@
                 </div>
             </div>
             <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-secondary" onclick="hideEventModal()">Cerrar</button>
             </div>
         </div>
     </div>
 </div>
 
+@section Scripts {
 <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Move modal to body to avoid z-index stacking context issues
+        const modal = document.getElementById('eventDetailModal');
+        if (modal) document.body.appendChild(modal);
+    });
+
+    function hideEventModal() {
+        // Try Bootstrap's way
+        try {
+            $('#eventDetailModal').modal('hide');
+        } catch (e) {
+            console.error('Bootstrap hide failed', e);
+        }
+
+        // Manual cleanup fallback
+        setTimeout(() => {
+            const modal = document.getElementById('eventDetailModal');
+            if (modal) {
+                modal.classList.remove('show');
+                modal.style.display = 'none';
+                modal.setAttribute('aria-hidden', 'true');
+            }
+            
+            // Remove backdrops
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(b => b.remove());
+            
+            // Re-enable scroll
+            document.body.classList.remove('modal-open');
+            document.body.style.paddingRight = '';
+        }, 150);
+    }
+
     function showEventDetails(date, cp, conn, msg, result, error) {
         document.getElementById('modalDate').innerText = date;
         document.getElementById('modalCp').innerText = cp;
@@ -256,22 +293,22 @@
         const resultEl = document.getElementById('modalResult');
         resultEl.innerText = result;
         
+        const isError = (result === 'Fail' || (error && error !== '' && error !== 'NoError' && error !== 'null'));
+
         // Style badge
         resultEl.className = 'badge p-2'; // reset
-        if (result === 'Success' || result === 'OK' || result === 'Accepted') {
+        if (result === 'Success' || result === 'OK' || result === 'Accepted' || !isError) {
             resultEl.classList.add('badge-success');
             resultEl.style.backgroundColor = 'rgba(129, 199, 132, 0.2)';
             resultEl.style.color = '#81c784';
-        } else if (result === 'Fail' || error) {
+        } else {
             resultEl.classList.add('badge-danger');
             resultEl.style.backgroundColor = 'rgba(229, 115, 115, 0.2)';
             resultEl.style.color = '#e57373';
-        } else {
-             resultEl.classList.add('badge-secondary');
         }
 
         const errContainer = document.getElementById('modalErrorCodeContainer');
-        if (error) {
+        if (isError) {
             errContainer.classList.remove('d-none');
         } else {
             errContainer.classList.add('d-none');
@@ -280,3 +317,4 @@
         $('#eventDetailModal').modal('show');
     }
 </script>
+}

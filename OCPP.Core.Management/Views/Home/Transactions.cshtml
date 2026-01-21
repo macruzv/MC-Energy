@@ -117,7 +117,14 @@
                         <th>@Localizer["MeterStart"]</th>
                         <th>@Localizer["MeterStop"]</th>
                         <th class="text-right">@Localizer["ChargeSum"] (kWh)</th>
-                        <th>@Localizer["StopReason"]</th>
+                        <th>
+                            <span data-toggle="tooltip" data-html="true" data-placement="top" 
+                                  title="<div style='text-align:left; line-height: 1.6;'><div style='font-size: 1.1em; font-weight: bold; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(208, 188, 255, 0.3);'>Razón de Detención</div><div style='margin-top: 8px;'><div style='font-weight: 600; margin-bottom: 6px;'>Valores Comunes:</div><div style='margin-left: 8px;'>• <strong>Local</strong> - Detenido por el usuario<br>• <strong>Remote</strong> - Detenido remotamente<br>• <strong>EmergencyStop</strong> - Parada de emergencia<br>• <strong>EVDisconnected</strong> - Vehículo desconectado<br>• <strong>PowerLoss</strong> - Pérdida de energía<br>• <strong>DeAuthorized</strong> - Autorización revocada<br>• <strong>HardReset</strong> - Reinicio forzoso<br>• <strong>SoftReset</strong> - Reinicio controlado<br>• <strong>Reboot</strong> - Reinicio del cargador<br>• <strong>Other</strong> - Otra razón</div></div></div>"
+                                  style="cursor: help; border-bottom: 1px dotted var(--md-sys-color-primary);">
+                                @Localizer["StopReason"]
+                                <i class="fas fa-info-circle ml-1 text-primary-md" style="font-size: 0.85em;"></i>
+                            </span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -230,6 +237,16 @@
                 }
             })
         }
+
+        // Initialize tooltips
+        $(document).ready(function() {
+            $('[data-toggle="tooltip"]').tooltip({
+                boundary: 'window',
+                container: 'body',
+                sanitize: false,
+                template: '<div class="tooltip" role="tooltip"><div class="arrow"></div><div class="tooltip-inner" style="background: #1c1b1f; border: 1px solid rgba(208, 188, 255, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.5); max-width: 350px; text-align: left; padding: 12px;"></div></div>'
+            });
+        });
     </script>
     <style>
         .dropdown-menu.glass {

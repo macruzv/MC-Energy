@@ -96,26 +96,56 @@
                         </div>
                     </div>
 
-                    <!-- Configuración de Tarificación -->
+                    <!-- Configuración de Tarificación y Facturación -->
                     <div class="col-md-6 mb-4">
                         <div class="card bg-dark-light border-0 rounded-lg h-100">
                             <div class="card-body">
                                 <h5 class="text-white mb-3">
-                                    <i class="fas fa-dollar-sign mr-2 text-primary-md"></i>Tarificación
+                                    <i class="fas fa-file-invoice-dollar mr-2 text-primary-md"></i>Tarificación y Facturación
                                 </h5>
-                                <form asp-action="SavePrice" method="post">
-                                    <div class="form-group">
-                                        <label class="text-muted small uppercase font-weight-bold">Precio por kWh</label>
-                                        <div class="input-group">
-                                            <div class="input-group-prepend">
-                                                <span class="input-group-text bg-dark border-0 text-white">$</span>
-                                            </div>
-                                            <input type="number" step="0.01" name="price" class="form-control bg-dark border-0 text-white" value="@ViewBag.PricePerKWh" placeholder="0.00">
-                                        </div>
-                                        <small class="text-muted">Este precio se utilizará para calcular el total en los tickets impresos.</small>
+                                <form asp-action="SaveBillingSettings" method="post" id="billingForm">
+                                    <div class="form-group mb-3">
+                                        <label class="text-muted small uppercase font-weight-bold">Modo de Facturación</label>
+                                        <select name="billingMode" class="form-control bg-dark border-0 text-white">
+                                            <option value="Energy" selected="@(ViewBag.BillingMode == "Energy")">Por Energía (kWh)</option>
+                                            <option value="Time" selected="@(ViewBag.BillingMode == "Time")">Por Tiempo (Horas)</option>
+                                        </select>
                                     </div>
-                                    <button type="submit" class="btn btn-primary-md btn-block mt-3">
-                                        <i class="fas fa-save mr-2"></i>Guardar Cambios
+
+                                    <div class="form-group mb-3">
+                                        <label class="text-muted small uppercase font-weight-bold">Esquema de Precios</label>
+                                        <select name="pricingType" id="pricingType" class="form-control bg-dark border-0 text-white" onchange="togglePricingType(this.value)">
+                                            <option value="Fixed" selected="@(ViewBag.PricingType == "Fixed")">Precio Fijo</option>
+                                            <option value="Scheduled" selected="@(ViewBag.PricingType == "Scheduled")">Por Horario (Paneles/Noche)</option>
+                                        </select>
+                                    </div>
+
+                                    <div id="fixedPriceRow" style="display: @(ViewBag.PricingType == "Fixed" ? "block" : "none");">
+                                        <div class="form-group mb-3">
+                                            <label class="text-muted small uppercase font-weight-bold">Precio Base (kWh o Hora)</label>
+                                            <div class="input-group">
+                                                <div class="input-group-prepend">
+                                                    <span class="input-group-text bg-dark border-0 text-white">$</span>
+                                                </div>
+                                                <input type="number" step="0.01" id="basePrice" class="form-control bg-dark border-0 text-white" value="@ViewBag.PricePerKWh" placeholder="0.00" onchange="updateSchedulesFromBase()">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div id="scheduledPriceRow" style="display: @(ViewBag.PricingType == "Scheduled" ? "block" : "none");">
+                                        <label class="text-muted small uppercase font-weight-bold mb-2">Horarios de Precios</label>
+                                        <div id="schedulesContainer">
+                                            <!-- Schedules will be added here via JS -->
+                                        </div>
+                                        <!-- <button type="button" class="btn btn-outline-primary-md btn-sm btn-block mt-2" onclick="addScheduleRow()">
+                                            <i class="fas fa-plus mr-2"></i>Añadir Horario
+                                        </button> -->
+                                    </div>
+
+                                    <input type="hidden" name="pricingSchedules" id="pricingSchedulesInput" value='@ViewBag.PricingSchedules'>
+
+                                    <button type="submit" class="btn btn-primary-md btn-block mt-4" onclick="return prepareBillingForm()">
+                                        <i class="fas fa-save mr-2"></i>Guardar Configuración
                                     </button>
                                 </form>
                             </div>
@@ -166,7 +196,7 @@
                                     </div>
 
                                     <div class="row">
-                                        <div class="col-md-4 mb-3">
+                                        <div class="col-md-6 mb-3">
                                             <div class="form-group">
                                                 <label class="text-muted small uppercase font-weight-bold">Calidad de Imagen (DPI)</label>
                                                 <select name="printerDPI" class="form-control bg-dark border-0 text-white">
@@ -177,9 +207,12 @@
                                                 </select>
                                                 <small class="text-muted small">Valores menores evitan saturar la caché del PDA.</small>
                                             </div>
+                                            <button type="submit" class="btn btn-primary-md btn-block mt-3">
+                                                <i class="fas fa-save mr-2"></i>Guardar Configuración
+                                            </button>
                                         </div>
-                                        <div class="col-md-4 mb-3">
-                                            <div class="form-group">
+                                        <div class="col-md-6 mb-3">
+                                            <div class="form-group h-100 d-flex flex-column">
                                                 <label class="text-muted small uppercase font-weight-bold">Ancho de Papel</label>
                                                 <select name="printerWidth" class="form-control bg-dark border-0 text-white">
                                                     <option value="56" selected="@(ViewBag.PrinterWidth == "56")">56mm (PDA Estándar)</option>
@@ -187,11 +220,6 @@
                                                     <option value="80" selected="@(ViewBag.PrinterWidth == "80")">80mm (Impresora de Barra)</option>
                                                 </select>
                                             </div>
-                                        </div>
-                                        <div class="col-md-4 mb-3 d-flex align-items-end">
-                                            <button type="submit" class="btn btn-primary-md btn-block mb-3">
-                                                <i class="fas fa-save mr-2"></i>Guardar Configuración
-                                            </button>
                                         </div>
                                     </div>
                                 </form>
@@ -263,6 +291,89 @@
                 fields.style.display = 'none';
             }
         }
+
+        function togglePricingType(val) {
+            document.getElementById('fixedPriceRow').style.display = (val === 'Fixed' ? 'block' : 'none');
+            document.getElementById('scheduledPriceRow').style.display = (val === 'Scheduled' ? 'block' : 'none');
+        }
+
+        let schedules = [];
+
+        function initSchedules() {
+            const input = document.getElementById('pricingSchedulesInput');
+            try {
+                schedules = JSON.parse(input.value || "[]");
+            } catch (e) {
+                schedules = [];
+            }
+            renderSchedules();
+        }
+
+        function renderSchedules() {
+            const container = document.getElementById('schedulesContainer');
+            container.innerHTML = '';
+            
+            if (schedules.length === 0) {
+                // Add default rows if empty
+                schedules = [
+                    { start: "08:00", end: "18:00", price: 10 },
+                    { start: "18:00", end: "08:00", price: 25 }
+                ];
+            }
+
+            schedules.forEach((s, index) => {
+                const div = document.createElement('div');
+                div.className = 'row no-gutters mb-2 align-items-center bg-dark p-2 rounded';
+                div.innerHTML = `
+                    <div class="col-4">
+                        <input type="time" class="form-control form-control-sm bg-transparent border-0 text-white p-0 schedule-start" value="${s.start}" onchange="updateSchedule(${index}, 'start', this.value)">
+                    </div>
+                    <div class="col-1 text-center text-muted">to</div>
+                    <div class="col-4">
+                        <input type="time" class="form-control form-control-sm bg-transparent border-0 text-white p-0 schedule-end" value="${s.end}" onchange="updateSchedule(${index}, 'end', this.value)">
+                    </div>
+                    <div class="col-3 d-flex align-items-center">
+                        <span class="text-primary-md mr-1">$</span>
+                        <input type="number" step="0.01" class="form-control form-control-sm bg-transparent border-0 text-white p-0 schedule-price" value="${s.price}" onchange="updateSchedule(${index}, 'price', this.value)">
+                        <button type="button" class="btn btn-link btn-sm text-danger p-0 ml-2" onclick="removeSchedule(${index})"><i class="fas fa-times"></i></button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addScheduleRow() {
+            schedules.push({ start: "00:00", end: "23:59", price: 10 });
+            renderSchedules();
+        }
+
+        function updateSchedule(index, field, value) {
+            schedules[index][field] = (field === 'price' ? parseFloat(value) : value);
+        }
+
+        function removeSchedule(index) {
+            schedules.splice(index, 1);
+            renderSchedules();
+        }
+
+        function prepareBillingForm() {
+            const input = document.getElementById('pricingSchedulesInput');
+            input.value = JSON.stringify(schedules);
+            
+            // Also update PricePerKWh if Fixed
+            if (document.getElementById('pricingType').value === 'Fixed') {
+                const basePrice = document.getElementById('basePrice').value;
+                // We'll let the controller handle both if needed or use a separate form? 
+                // The SaveBillingSettings will just save the billing settings.
+                // We should probably include PricePerKWh in the SaveBillingSettings as well for consistency.
+            }
+            return true;
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', function() {
+            initSchedules();
+        });
 
         function confirmSync() {
             Swal.fire({

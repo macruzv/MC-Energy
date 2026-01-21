@@ -50,12 +50,18 @@ namespace OCPP.Core.Database
         public virtual DbSet<RolePermission> RolePermissions { get; set; }
         public virtual DbSet<Customer> Customers { get; set; }
         public virtual DbSet<TagGroup> TagGroups { get; set; }
+        public virtual DbSet<ErrorCatalogEntry> ErrorCatalog { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<ChargePoint>(entity =>
             {
                 entity.ToTable("ChargePoint");
+            
+            if (this.Database.IsSqlServer())
+            {
+                modelBuilder.Entity<User>().Ignore(u => u.Name);
+            }
 
                 entity.HasIndex(e => e.ChargePointId, "ChargePoint_Identifier")
                     .IsUnique();
@@ -227,6 +233,7 @@ namespace OCPP.Core.Database
 
                 // SQLite manual migrations (EnsureCreated only works on new databases)
                 this.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS TagGroups (TagGroupId INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL, Description TEXT NULL)");
+                this.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS ErrorCatalog (ErrorCode NVARCHAR(100) PRIMARY KEY, Title NVARCHAR(200) NOT NULL, Description TEXT NOT NULL, CommonCauses TEXT NULL, SuggestedSolution TEXT NULL, Severity NVARCHAR(50) NULL, Category NVARCHAR(100) NULL)");
                 this.Database.ExecuteSqlRaw("CREATE TABLE IF NOT EXISTS Customers (CustomerId INTEGER PRIMARY KEY AUTOINCREMENT, Name TEXT NOT NULL, Identifier TEXT NULL, Phone TEXT NULL, Email TEXT NULL, Balance DECIMAL(18, 4) NOT NULL DEFAULT 0)");
                 
                 // Helper to check for column existence in SQLite to silence logs
@@ -254,111 +261,18 @@ namespace OCPP.Core.Database
                 addColumnIfMissing("Transactions", "CustomerIdentifier", "TEXT NULL");
                 addColumnIfMissing("Transactions", "CustomerPhone", "TEXT NULL");
                 addColumnIfMissing("Transactions", "CustomerEmail", "TEXT NULL");
+                addColumnIfMissing("Transactions", "OperatorUserId", "INTEGER NULL");
+                addColumnIfMissing("Transactions", "CollectorUserId", "INTEGER NULL");
                 addColumnIfMissing("ChargeTags", "CustomerId", "INTEGER NULL");
-
-                // 1. Asegurar Roles base
-                var baseRoles = new[] { "Administrador", "Operador", "Auditor" };
-                foreach (var roleName in baseRoles)
-                {
-                    if (!this.Roles.Any(r => r.Name == roleName))
-                    {
-                        this.Roles.Add(new Role { Name = roleName });
-                    }
-                }
-                this.SaveChanges();
-
-                // 2. Asegurar Permisos base
-                var perms = new List<Permission>
-                {
-                    new Permission { Name = "Panel de Control", Controller = "Home", Action = "Index" },
-                    new Permission { Name = "Carga Rápida", Controller = "Home", Action = "QuickStart" },
-                    new Permission { Name = "Gestión de Cargadores", Controller = "Home", Action = "ChargePoint" },
-                    new Permission { Name = "Conectores", Controller = "Home", Action = "Connector" },
-                    new Permission { Name = "Tarjetas (Tags)", Controller = "Home", Action = "ChargeTag" },
-                    new Permission { Name = "Reportes", Controller = "Home", Action = "ChargeReport" },
-                    new Permission { Name = "Usuarios", Controller = "Users", Action = null },
-                    new Permission { Name = "Configuración", Controller = "Settings", Action = null },
-                    new Permission { Name = "Roles y Permisos", Controller = "Roles", Action = null },
-                    new Permission { Name = "Clientes", Controller = "Customers", Action = null },
-                    new Permission { Name = "Control de Operación", Controller = "Home", Action = "Control" }
-                };
-
-                foreach (var p in perms)
-                {
-                    if (!this.Permissions.Any(dbP => dbP.Name == p.Name))
-                    {
-                        this.Permissions.Add(p);
-                    }
-                }
-                this.SaveChanges();
-
-                // 3. Vincular todos los permisos al rol de Administrador
-                var adminRole = this.Roles.FirstOrDefault(r => r.Name == "Administrador");
-                if (adminRole != null)
-                {
-                    var allPerms = this.Permissions.ToList();
-                    foreach (var p in allPerms)
-                    {
-                        if (!this.RolePermissions.Any(rp => rp.RoleId == adminRole.RoleId && rp.PermissionId == p.PermissionId))
-                        {
-                            this.RolePermissions.Add(new RolePermission { RoleId = adminRole.RoleId, PermissionId = p.PermissionId });
-                        }
-                    }
-                    this.SaveChanges();
-
-                    // Ensure specific rename if Dashboard existed (SQLite/Manual)
-                    var oldDash = this.Permissions.FirstOrDefault(p => p.Name == "Dashboard");
-                    if (oldDash != null)
-                    {
-                        oldDash.Name = "Panel de Control";
-                        this.SaveChanges();
-                    }
-
-                    // 3.b. Asegurar que el usuario 'admin' tenga el rol de Administrador
-                    var adminUser = this.Users.FirstOrDefault(u => u.Username == "admin");
-                    if (adminUser != null)
-                    {
-                        if (!this.UserRoles.Any(ur => ur.UserId == adminUser.UserId && ur.RoleId == adminRole.RoleId))
-                        {
-                            this.UserRoles.Add(new UserRole { UserId = adminUser.UserId, RoleId = adminRole.RoleId });
-                            this.SaveChanges();
-                        }
-                    }
-                }
-
-                // 4. Asegurar que exista al menos un grupo por defecto
-                if (!this.TagGroups.Any())
-                {
-                    this.TagGroups.Add(new TagGroup { Name = "General", Description = "Grupo por defecto" });
-                    this.SaveChanges();
-                }
-                return;
             }
-
-            void TryExecute(string sql)
+            else
             {
-                try { this.Database.ExecuteSqlRaw(sql); } catch { }
-            }
-
-            // SQL Server Optimization: Check if SystemSetting exists first
-            bool tablesExist = false;
-            try {
-                var conn = this.Database.GetDbConnection();
-                bool shouldClose = conn.State != System.Data.ConnectionState.Open;
-                if (shouldClose) conn.Open();
-                try {
-                    using (var cmd = conn.CreateCommand()) {
-                        cmd.CommandText = "SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SystemSetting]') AND type in (N'U')";
-                        var result = cmd.ExecuteScalar();
-                        tablesExist = (result != null && result != DBNull.Value);
-                    }
-                } finally {
-                    if (shouldClose && conn.State == System.Data.ConnectionState.Open) conn.Close();
+                void TryExecute(string sql)
+                {
+                    try { this.Database.ExecuteSqlRaw(sql); } catch { }
                 }
-            } catch { }
 
-            if (!tablesExist)
-            {
+                // Ensure all tables exist in SQL Server
                 TryExecute(@"
                     IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SystemSetting]') AND type in (N'U'))
                     BEGIN
@@ -391,7 +305,6 @@ namespace OCPP.Core.Database
                             [Name] [nvarchar](50) NOT NULL,
                             CONSTRAINT [PK_Roles] PRIMARY KEY CLUSTERED ([RoleId] ASC)
                         )
-                        INSERT INTO [dbo].[Roles] ([Name]) VALUES ('Administrador'), ('Operador'), ('Auditor')
                     END");
 
                 TryExecute(@"
@@ -401,16 +314,6 @@ namespace OCPP.Core.Database
                             [UserId] [int] NOT NULL,
                             [RoleId] [int] NOT NULL,
                             CONSTRAINT [PK_UserRoles] PRIMARY KEY CLUSTERED ([UserId] ASC, [RoleId] ASC)
-                        )
-                    END");
-
-                TryExecute(@"
-                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[UserChargePoints]') AND type in (N'U'))
-                    BEGIN
-                        CREATE TABLE [dbo].[UserChargePoints](
-                            [UserId] [int] NOT NULL,
-                            [ChargePointId] [nvarchar](100) NOT NULL,
-                            CONSTRAINT [PK_UserChargePoints] PRIMARY KEY CLUSTERED ([UserId] ASC, [ChargePointId] ASC)
                         )
                     END");
 
@@ -425,17 +328,6 @@ namespace OCPP.Core.Database
                             [Action] [nvarchar](100) NULL,
                             CONSTRAINT [PK_Permissions] PRIMARY KEY CLUSTERED ([PermissionId] ASC)
                         )
-                        INSERT INTO [dbo].[Permissions] ([Name], [Controller], [Action]) VALUES 
-                        ('Panel de Control', 'Home', 'Index'), ('Carga Rápida', 'Home', 'QuickStart'),
-                        ('Gestión de Cargadores', 'Home', 'ChargePoint'), ('Conectores', 'Home', 'Connector'),
-                        ('Tarjetas (Tags)', 'Home', 'ChargeTag'), ('Reportes', 'Home', 'ChargeReport'),
-                        ('Usuarios', 'Users', NULL), ('Configuración', 'Settings', NULL),
-                        ('Roles y Permisos', 'Roles', NULL), ('Control de Operación', 'Home', 'Control')
-                    END
-                    ELSE
-                    BEGIN
-                        UPDATE [dbo].[Permissions] SET [Name] = 'Panel de Control', [Action] = 'Index' WHERE [Name] = 'Dashboard'
-                        UPDATE [dbo].[Permissions] SET [Name] = 'Gestión de Cargadores', [Action] = 'ChargePoint' WHERE [Name] = 'Cargadores'
                     END");
 
                 TryExecute(@"
@@ -446,12 +338,6 @@ namespace OCPP.Core.Database
                             [PermissionId] [int] NOT NULL,
                             CONSTRAINT [PK_RolePermissions] PRIMARY KEY CLUSTERED ([RoleId] ASC, [PermissionId] ASC)
                         )
-                        DECLARE @AdminRoleId int = (SELECT RoleId FROM [dbo].[Roles] WHERE [Name] = 'Administrador')
-                        IF @AdminRoleId IS NOT NULL
-                        BEGIN
-                            INSERT INTO [dbo].[RolePermissions] ([RoleId], [PermissionId])
-                            SELECT @AdminRoleId, [PermissionId] FROM [dbo].[Permissions]
-                        END
                     END");
 
                 TryExecute(@"
@@ -477,23 +363,261 @@ namespace OCPP.Core.Database
                             [Description] [nvarchar](255) NULL,
                             CONSTRAINT [PK_TagGroups] PRIMARY KEY CLUSTERED ([TagGroupId] ASC)
                         )
-                        INSERT INTO [dbo].[TagGroups] ([Name], [Description]) VALUES ('General', 'Grupo por defecto')
                     END");
+
+                TryExecute(@"
+                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ErrorCatalog]') AND type in (N'U'))
+                    BEGIN
+                        CREATE TABLE [dbo].[ErrorCatalog](
+                            [ErrorCode] [nvarchar](100) NOT NULL,
+                            [Title] [nvarchar](200) NOT NULL,
+                            [Description] [nvarchar](max) NOT NULL,
+                            [CommonCauses] [nvarchar](max) NULL,
+                            [SuggestedSolution] [nvarchar](max) NULL,
+                            [Severity] [nvarchar](50) NULL,
+                            [Category] [nvarchar](100) NULL,
+                            CONSTRAINT [PK_ErrorCatalog] PRIMARY KEY CLUSTERED ([ErrorCode] ASC)
+                        )
+                    END");
+
+                EnsureSchemaExtended();
             }
 
+            // Common Seeding for both Providers
+            
+            // 1. Roles
+            var baseRoles = new[] { "Administrador", "Operador", "Auditor" };
+            foreach (var roleName in baseRoles)
+            {
+                if (!this.Roles.Any(r => r.Name == roleName))
+                {
+                    this.Roles.Add(new Role { Name = roleName });
+                }
+            }
+            this.SaveChanges();
 
-            TryExecute(@"
-                IF NOT EXISTS (SELECT * FROM [dbo].[Permissions] WHERE [Name] = 'Clientes')
-                BEGIN
-                    INSERT INTO [dbo].[Permissions] ([Name], [Controller], [Action]) VALUES ('Clientes', 'Customers', NULL)
-                    DECLARE @ClientId INT = (SELECT PermissionId FROM [dbo].[Permissions] WHERE [Name] = 'Clientes')
-                    INSERT INTO [dbo].[RolePermissions] ([RoleId], [PermissionId])
-                    SELECT RoleId, @ClientId FROM [dbo].[Roles] WHERE RoleId IN (1, 2)
-                END
-                ELSE
-                BEGIN
-                    UPDATE [dbo].[Permissions] SET [Action] = NULL WHERE [Name] = 'Clientes' AND [Controller] = 'Customers'
-                END");
+            // 2. Permissions
+            var perms = new List<Permission>
+            {
+                new Permission { Name = "Panel de Control", Controller = "Home", Action = "Index" },
+                new Permission { Name = "Carga Rápida", Controller = "Home", Action = "QuickStart" },
+                new Permission { Name = "Gestión de Cargadores", Controller = "Home", Action = "ChargePoint" },
+                new Permission { Name = "Conectores", Controller = "Home", Action = "Connector" },
+                new Permission { Name = "Tarjetas (Tags)", Controller = "Home", Action = "ChargeTag" },
+                new Permission { Name = "Reportes", Controller = "Home", Action = "ChargeReport" },
+                new Permission { Name = "Usuarios", Controller = "Users", Action = null },
+                new Permission { Name = "Configuración", Controller = "Settings", Action = null },
+                new Permission { Name = "Roles y Permisos", Controller = "Roles", Action = null },
+                new Permission { Name = "Clientes", Controller = "Customers", Action = null },
+                new Permission { Name = "Control de Operación", Controller = "Home", Action = "Control" },
+                new Permission { Name = "Modo de Facturación", Controller = "Settings", Action = "SaveBillingSettings" },
+                new Permission { Name = "Catálogo de Diagnóstico", Controller = "Home", Action = "Diagnostics" }
+            };
+
+            foreach (var p in perms)
+            {
+                var existing = this.Permissions.FirstOrDefault(dbP => dbP.Name == p.Name);
+                if (existing == null)
+                {
+                    this.Permissions.Add(p);
+                }
+                else
+                {
+                    // Update controller/action if changed
+                    existing.Controller = p.Controller;
+                    existing.Action = p.Action;
+                }
+            }
+            this.SaveChanges();
+
+            // Ensure specific renames (Legacy support)
+            var oldDash = this.Permissions.FirstOrDefault(p => p.Name == "Dashboard");
+            if (oldDash != null)
+            {
+                oldDash.Name = "Panel de Control";
+                oldDash.Action = "Index";
+                this.SaveChanges();
+            }
+
+            // 3. Admin Account & Role Alignment
+            var adminRole = this.Roles.FirstOrDefault(r => r.Name == "Administrador");
+            if (adminRole != null)
+            {
+                var allPerms = this.Permissions.ToList();
+                foreach (var p in allPerms)
+                {
+                    if (!this.RolePermissions.Any(rp => rp.RoleId == adminRole.RoleId && rp.PermissionId == p.PermissionId))
+                    {
+                        this.RolePermissions.Add(new RolePermission { RoleId = adminRole.RoleId, PermissionId = p.PermissionId });
+                    }
+                }
+                this.SaveChanges();
+
+                var adminUser = this.Users.FirstOrDefault(u => u.Username == "admin");
+                if (adminUser != null)
+                {
+                    if (!this.UserRoles.Any(ur => ur.UserId == adminUser.UserId && ur.RoleId == adminRole.RoleId))
+                    {
+                        this.UserRoles.Add(new UserRole { UserId = adminUser.UserId, RoleId = adminRole.RoleId });
+                        this.SaveChanges();
+                    }
+                }
+            }
+
+            // 4. Group & Billing Settings
+            if (!this.TagGroups.Any())
+            {
+                this.TagGroups.Add(new TagGroup { Name = "General", Description = "Grupo por defecto" });
+                this.SaveChanges();
+            }
+
+            if (!this.SystemSettings.Any(s => s.SettingId == "Billing_Mode"))
+                this.SystemSettings.Add(new SystemSetting { SettingId = "Billing_Mode", Value = "Energy" });
+            
+            if (!this.SystemSettings.Any(s => s.SettingId == "Pricing_Type"))
+                this.SystemSettings.Add(new SystemSetting { SettingId = "Pricing_Type", Value = "Fixed" });
+            
+            if (!this.SystemSettings.Any(s => s.SettingId == "Pricing_Schedules"))
+                this.SystemSettings.Add(new SystemSetting { SettingId = "Pricing_Schedules", Value = "[]" });
+
+            this.SaveChanges();
+
+            // 5. Error Catalog Seeding
+            SeedErrorCatalog();
+        }
+
+        public void EnsureSchemaExtended()
+        {
+             // Transactions table
+            AddColumnIfMissingSqlServer("Transactions", "CustomerIdentifier", "nvarchar(50) NULL");
+            AddColumnIfMissingSqlServer("Transactions", "CustomerPhone", "nvarchar(50) NULL");
+            AddColumnIfMissingSqlServer("Transactions", "CustomerEmail", "nvarchar(100) NULL");
+            AddColumnIfMissingSqlServer("Transactions", "OperatorUserId", "int NULL");
+            AddColumnIfMissingSqlServer("Transactions", "CollectorUserId", "int NULL");
+            
+            // ChargeTags table
+            AddColumnIfMissingSqlServer("ChargeTags", "CustomerId", "int NULL");
+        }
+
+        private void SeedErrorCatalog()
+        {
+            if (!this.ErrorCatalog.Any())
+            {
+                var entries = new List<ErrorCatalogEntry>
+                {
+                    new ErrorCatalogEntry {
+                        ErrorCode = "ConnectorLockFailure",
+                        Title = "Fallo de Bloqueo del Conector",
+                        Description = "El cargador no pudo bloquear o desbloquear el conector cableado. Esto sucede cuando el actuador no se posiciona correctamente.",
+                        CommonCauses = "• Obstrucción física en el puerto.\n• Actuador de bloqueo dañado.\n• Desgaste en el pin de bloqueo.",
+                        SuggestedSolution = "Inspeccionar visualmente el conector y puerto. Limpiar residuos. Si el error persiste, el técnico debe verificar el voltaje del actuador de bloqueo y su continuidad.",
+                        Severity = "High",
+                        Category = "Hardware"
+                    },
+                    new ErrorCatalogEntry {
+                        ErrorCode = "EVCommunicationError",
+                        Title = "Error de Comunicación con el Vehículo",
+                        Description = "Fallo en el protocolo de señalización entre el cargador y el sistema de gestión del vehículo (BMS).",
+                        CommonCauses = "• Cable de control (CP/PP) dañado.\n• Problema con la señal PWM del cargador.\n• El vehículo rechazó el inicio de carga.",
+                        SuggestedSolution = "Verificar integridad del cable de carga. Probar con otro vehículo para descartar fallo del BMS del auto. Revisar placa de control CP si no hay señal PWM.",
+                        Severity = "Medium",
+                        Category = "Protocol"
+                    },
+                    new ErrorCatalogEntry {
+                        ErrorCode = "GroundFailure",
+                        Title = "Fallo de Puesta a Tierra",
+                        Description = "Se detectó una fuga de corriente a tierra o falta de conexión de tierra de protección (PE).",
+                        CommonCauses = "• Falla de aislamiento en el vehículo o cable.\n• Instalación eléctrica del sitio dañada.\n• Sensor RCD defectuoso.",
+                        SuggestedSolution = "Instruir al cliente a desconectar y reintentar. Si persiste, el técnico debe medir la resistencia de puesta a tierra de la instalación eléctrica. Verificar sensor RCMU interno.",
+                        Severity = "Critical",
+                        Category = "Electrical"
+                    },
+                    new ErrorCatalogEntry {
+                        ErrorCode = "HighTemperature",
+                        Title = "Alta Temperatura",
+                        Description = "La temperatura interna del cargador o conector superó los niveles de seguridad.",
+                        CommonCauses = "• Ventilación obstruida.\n• Fallo de ventilador.\n• Contactos sulfatados causando sobrecalentamiento.",
+                        SuggestedSolution = "Limpiar rejillas de ventilación. Verificar que los ventiladores giren libremente. Revisar apriete de bornes y estado de los pines del conector.",
+                        Severity = "High",
+                        Category = "Hardware"
+                    },
+                    new ErrorCatalogEntry {
+                        ErrorCode = "OverCurrentFailure",
+                        Title = "Sobrecorriente en la Salida",
+                        Description = "La corriente medida excede el límite nominal del conector o la configuración del cargador.",
+                        CommonCauses = "• BMS del auto solicitando más de lo permitido.\n• Cortocircuito parcial.\n• Error de calibración del sensor.",
+                        SuggestedSolution = "Verificar configuración de límites de corriente en el cargador. Inspeccionar cable en busca de cortes o quemaduras. Verificar sensores Hall.",
+                        Severity = "High",
+                        Category = "Electrical"
+                    },
+                    new ErrorCatalogEntry {
+                        ErrorCode = "PowerMeterFailure",
+                        Title = "Fallo del Medidor de Energía",
+                        Description = "No se reciben datos del medidor de energía interno (MID).",
+                        CommonCauses = "• Cableado RS485/Modbus suelto.\n• Medidor quemado o sin energía.\n• Interferencia electromagnética.",
+                        SuggestedSolution = "Verificar alimentación del medidor. Revisar cableado de datos entre el medidor y la placa principal del cargador.",
+                        Severity = "Medium",
+                        Category = "Hardware"
+                    },
+                    new ErrorCatalogEntry {
+                        ErrorCode = "UnderVoltage",
+                        Title = "Bajo Voltaje de Red",
+                        Description = "La tensión de entrada está por debajo del umbral de operación (típicamente -15%).",
+                        CommonCauses = "• Caída de tensión en la red eléctrica.\n• Sobrecarga en el tablero de distribución.\n• Alimentación con cable de sección insuficiente.",
+                        SuggestedSolution = "Verificar tensión de entrada con multímetro. Si es bajo en el sitio, contactar a la proveedora eléctrica. Aumentar sección de cable si hay caída por distancia.",
+                        Severity = "Medium",
+                        Category = "Network"
+                    },
+                    new ErrorCatalogEntry {
+                        ErrorCode = "OverVoltage",
+                        Title = "Sobrevoltaje de Red",
+                        Description = "La tensión de entrada supera el umbral de operación (típicamente +10%).",
+                        CommonCauses = "• Inestabilidad en la red eléctrica exterior.\n• Fallo en transformador de alta a baja tensión.\n• Transitorios de red.",
+                        SuggestedSolution = "Verificar tensión de entrada. Instalar protectores de sobretensión si es recurrente. Evitar cargar hasta que la red se estabilice.",
+                        Severity = "High",
+                        Category = "Network"
+                    },
+                    new ErrorCatalogEntry {
+                        ErrorCode = "InternalError",
+                        Title = "Error Interno del Procesador",
+                        Description = "Fallo en el software o microcontrolador del cargador.",
+                        CommonCauses = "• Error de firmware.\n• Reinicio inesperado del sistema.\n• Memoria RAM/Flash corrupta.",
+                        SuggestedSolution = "Reiniciar el cargador completamente (Power Cycle). Actualizar firmware a la última versión disponible.",
+                        Severity = "Medium",
+                        Category = "Hardware"
+                    }
+                };
+
+                this.ErrorCatalog.AddRange(entries);
+                this.SaveChanges();
+            }
+        }
+
+        private void AddColumnIfMissingSqlServer(string tableName, string columnName, string columnDefinition)
+        {
+             try
+             {
+                 // Try to find object ID without explicit dbo first, then with it if needed
+                 var checkSql = $@"
+                     IF EXISTS (SELECT * FROM sys.tables WHERE name = '{tableName}')
+                     BEGIN
+                         IF NOT EXISTS (
+                           SELECT * 
+                           FROM sys.columns 
+                           WHERE object_id = OBJECT_ID(N'{tableName}') 
+                           AND name = '{columnName}'
+                         )
+                         BEGIN
+                             EXEC('ALTER TABLE [{tableName}] ADD [{columnName}] {columnDefinition}');
+                         END
+                     END";
+                 
+                 this.Database.ExecuteSqlRaw(checkSql);
+            }
+            catch (Exception ex)
+            { 
+                Console.WriteLine($"Error adding column {columnName} to {tableName}: {ex.Message}");
+            }
         }
 
         partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

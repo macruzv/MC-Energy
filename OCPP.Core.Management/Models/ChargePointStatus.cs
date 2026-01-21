@@ -90,6 +90,16 @@ namespace OCPP.Core.Management.Models
         /// StateOfCharges in percent
         /// </summary>
         public double? SoC { get; set; }
+
+        /// <summary>
+        /// Battery Temperature in Celsius (BMS)
+        /// </summary>
+        public double? BmsTemp { get; set; }
+
+        /// <summary>
+        /// Charge Point Internal Temperature in Celsius
+        /// </summary>
+        public double? ChargerTemp { get; set; }
     }
 
     public enum ConnectorStatusEnum

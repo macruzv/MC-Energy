@@ -111,8 +111,24 @@ namespace OCPP.Core.Management
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILoggerFactory loggerFactory)
         {
+            // Ensure Database is up to date
+            using (var scope = app.ApplicationServices.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<OCPPCoreContext>();
+                try 
+                {
+                    dbContext.Database.Migrate();
+                    dbContext.EnsureSchemaExtended();
+                }
+                catch (Exception ex)
+                {
+                    var logger = loggerFactory.CreateLogger("Startup");
+                    logger.LogError(ex, "Error migrating or extending database schema");
+                }
+            }
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();

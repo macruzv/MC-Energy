@@ -32,10 +32,15 @@
                         {
                             foreach (var c in registeredCustomers)
                             {
+                                var firstTag = c.ChargeTags?.FirstOrDefault();
+                                var expiryDateStr = firstTag?.ExpiryDate?.ToString("yyyy-MM-dd") ?? "";
+                                var isBlocked = firstTag?.Blocked == true ? "true" : "false";
                                 <option value="@c.CustomerId" 
                                         data-id="@c.Identifier" 
                                         data-tel="@c.Phone" 
-                                        data-eml="@c.Email">
+                                        data-eml="@c.Email"
+                                        data-expiry="@expiryDateStr"
+                                        data-blocked="@isBlocked">
                                     @c.Name
                                 </option>
                             }
@@ -83,10 +88,10 @@
                 bool isOnline = onlineStatus != null && onlineStatus.ContainsKey(cp.ChargePointId);
                 <div class="col-md-4 mb-4">
                     <div class="card bg-dark text-white border-0 shadow-lg h-100 station-card" 
-                         onclick="selectCharger('@cp.ChargePointId', '@cp.Name')"
-                         style="border-radius: 24px; cursor: pointer; transition: all 0.3s ease;">
+                         onclick="@(isOnline ? $"selectCharger('{cp.ChargePointId}', '{cp.Name}')" : "")"
+                         style="border-radius: 24px; cursor: @(isOnline ? "pointer" : "default"); transition: all 0.3s ease; @(isOnline ? "" : "opacity: 0.8;")">
                         <div class="card-body p-4 text-center">
-                            <i class="fas fa-charging-station fa-3x mb-3 text-primary"></i>
+                            <i class="fas fa-charging-station fa-3x mb-3 @(isOnline ? "text-primary" : "text-danger")"></i>
                             <h5 class="card-title font-weight-bold">@cp.Name</h5>
                             <p class="card-text text-muted small mb-3">ID: @cp.ChargePointId</p>
                             
@@ -124,7 +129,7 @@
             
             foreach (var cp in Model.ChargePoints)
             {
-                var stationConnectors = allConnectors?.Where(x => x.ChargePointId == cp.ChargePointId).OrderBy(x => x.ConnectorId).ToList();
+                var stationConnectors = allConnectors?.Where(x => x.ChargePointId == cp.ChargePointId && x.ConnectorId > 0).OrderBy(x => x.ConnectorId).ToList();
                 if (stationConnectors != null && stationConnectors.Any())
                 {
                     foreach (var conn in stationConnectors)
@@ -185,6 +190,55 @@
                 document.getElementById('cust-tel').value = '';
                 document.getElementById('cust-eml').value = '';
                 return;
+            }
+
+            // Check if card is blocked
+            const isBlocked = selectedOption.getAttribute('data-blocked') === 'true';
+            if (isBlocked) {
+                Swal.fire({
+                    title: '<span class="text-white">Tarjeta Bloqueada</span>',
+                    html: '<div class="text-light"><p>La tarjeta de este cliente está <strong>bloqueada</strong>.</p><p class="mb-0">Por favor, comuníquese con <strong>administración</strong> para resolver esta situación.</p></div>',
+                    icon: 'error',
+                    background: '#1c1b1f',
+                    confirmButtonColor: '#4f46e5',
+                    confirmButtonText: 'Entendido',
+                    iconColor: '#ef4444'
+                });
+                
+                // Clear the selection
+                select.selectedIndex = 0;
+                document.getElementById('cust-id').value = '';
+                document.getElementById('cust-tel').value = '';
+                document.getElementById('cust-eml').value = '';
+                return;
+            }
+
+            // Check if card is expired
+            const expiryDateStr = selectedOption.getAttribute('data-expiry');
+            if (expiryDateStr) {
+                const expiryDate = new Date(expiryDateStr);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0); // Reset time to start of day
+                
+                if (expiryDate < today) {
+                    // Card is expired - show alert
+                    Swal.fire({
+                        title: '<span class="text-white">Tarjeta Vencida</span>',
+                        html: '<div class="text-light"><p>La tarjeta de este cliente ha <strong>vencido</strong>.</p><p class="mb-0">Por favor, comuníquese con <strong>servicio al cliente</strong> para renovarla.</p></div>',
+                        icon: 'warning',
+                        background: '#1c1b1f',
+                        confirmButtonColor: '#4f46e5',
+                        confirmButtonText: 'Entendido',
+                        iconColor: '#f59e0b'
+                    });
+                    
+                    // Clear the selection
+                    select.selectedIndex = 0;
+                    document.getElementById('cust-id').value = '';
+                    document.getElementById('cust-tel').value = '';
+                    document.getElementById('cust-eml').value = '';
+                    return;
+                }
             }
 
             document.getElementById('cust-id').value = selectedOption.getAttribute('data-id') || '';

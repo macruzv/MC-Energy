@@ -195,7 +195,8 @@ namespace OCPP.Core.Server
                             transaction.CustomerIdentifier = customerData.Identifier;
                             transaction.CustomerPhone = customerData.Phone;
                             transaction.CustomerEmail = customerData.Email;
-                            Logger.LogInformation("StartTransaction => Enriched transaction with manual customer data: {0}", transaction.CustomerIdentifier);
+                            transaction.OperatorUserId = customerData.OperatorUserId;
+                            Logger.LogInformation("StartTransaction => Enriched transaction with manual customer data: {0} / Operator: {1}", transaction.CustomerIdentifier, transaction.OperatorUserId);
                         }
                         else 
                         {
@@ -213,6 +214,8 @@ namespace OCPP.Core.Server
 
                         DbContext.Add<Transaction>(transaction);
                         DbContext.SaveChanges();
+
+                        Logger.LogInformation("StartTransaction => Transaction {0} started at {1} kWh [CP={2}, CN={3}]", transaction.TransactionId, transaction.MeterStart, ChargePointStatus?.Id, transaction.ConnectorId);
 
                         // Return DB-ID as transaction ID
                         startTransactionResponse.TransactionId = transaction.TransactionId;

@@ -160,6 +160,32 @@ namespace OCPP.Core.Server
                                     Logger.LogError("{ControllerName} => MeterValues => invalid value '{0}' (SoC)", GetType().Name, sampleValue.Value);
                                 }
                             }
+                            else if (sampleValue.Measurand == SampledValueMeasurand.Temperature)
+                            {
+                                // temperature reading
+                                double temperature = -1;
+                                if (double.TryParse(sampleValue.Value, NumberStyles.Float, CultureInfo.InvariantCulture, out temperature))
+                                {
+                                    Logger.LogTrace("MeterValues => Temperature: '{0:0.0}' (Location={1})", temperature, sampleValue.Location);
+                                    
+                                    if (ChargePointStatus.OnlineConnectors.ContainsKey(connectorId))
+                                    {
+                                        OnlineConnectorStatus ocs = ChargePointStatus.OnlineConnectors[connectorId];
+                                        if (sampleValue.Location == SampledValueLocation.EV)
+                                        {
+                                            ocs.BmsTemp = temperature;
+                                        }
+                                        else
+                                        {
+                                            ocs.ChargerTemp = temperature;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    Logger.LogError("{ControllerName} => MeterValues => invalid value '{0}' (Temperature)", GetType().Name, sampleValue.Value);
+                                }
+                            }
                         }
                     }
 
@@ -176,16 +202,25 @@ namespace OCPP.Core.Server
                             try
                             {
                                 // Find active transaction for this chargepoint and connector
-                                var activeTx = DbContext.Transactions
-                                    .Where(t => t.ChargePointId == ChargePointStatus.Id && t.ConnectorId == connectorId && t.StopTime == null)
-                                    .OrderByDescending(t => t.TransactionId)
-                                    .FirstOrDefault();
+                                Transaction activeTx = null;
+                                if (meterValueRequest.TransactionId > 0)
+                                {
+                                    activeTx = DbContext.Transactions.Find(meterValueRequest.TransactionId);
+                                }
+                                
+                                if (activeTx == null)
+                                {
+                                    activeTx = DbContext.Transactions
+                                        .Where(t => t.ChargePointId == ChargePointStatus.Id && t.ConnectorId == connectorId && t.StopTime == null)
+                                        .OrderByDescending(t => t.TransactionId)
+                                        .FirstOrDefault();
+                                }
 
                                 if (activeTx != null)
                                 {
                                     activeTx.MeterStop = meterKWH;
                                     DbContext.SaveChanges();
-                                    Logger.LogTrace("MeterValues => Persisted intermediate meter value {0} to Transaction {1}", meterKWH, activeTx.TransactionId);
+                                    Logger.LogInformation("MeterValues => Persisted intermediate meter value {0} to Transaction {1} [CP={2}, CN={3}]", meterKWH, activeTx.TransactionId, ChargePointStatus.Id, connectorId);
                                 }
                             }
                             catch (Exception ex)

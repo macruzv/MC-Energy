@@ -100,6 +100,7 @@ namespace OCPP.Core.Server
             if (dbMigrate)
             {
                 dbContext.Database.Migrate();
+                dbContext.EnsureSchemaExtended(); // Custom columns for SQL Server
             }
 
             // Set WebSocketsOptions

@@ -25,6 +25,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using OCPP.Core.Database;
 
 namespace OCPP.Core.Management
@@ -42,6 +43,35 @@ namespace OCPP.Core.Management
                 try
                 {
                     var context = services.GetRequiredService<OCPPCoreContext>();
+                    var env = services.GetRequiredService<IHostEnvironment>();
+
+                    // Temporary Migration: Add Name column if missing (Must run BEFORE CheckDatabase calls any queries)
+                    // ONLY in Development (SQLite)
+                    if (env.IsDevelopment())
+                    {
+                        try
+                        {
+                            if (context.Database.IsSqlite())
+                            {
+                                context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN Name TEXT;");
+                            }
+                        }
+                        catch { /* Ignore if column exists */ }
+
+                    }
+
+                    // Seed default permissions for roles (Run in ALL environments to ensure PROD has them)
+                    try
+                    {
+                        var migrationService = services.GetRequiredService<OCPP.Core.Management.Services.DataMigrationService>();
+                        migrationService.EnsureDefaultPermissions().Wait();
+                    }
+                    catch (Exception ex)
+                    {
+                        var logger = services.GetRequiredService<ILogger<Program>>();
+                        logger.LogError(ex, "Error seeding default permissions");
+                    }
+
                     context.CheckDatabase();
                 }
                 catch (Exception ex)

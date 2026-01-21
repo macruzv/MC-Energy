@@ -230,6 +230,46 @@ namespace OCPP.Core.Management.Services
             }
         }
 
+        public async Task EnsureDefaultPermissions()
+        {
+            var defaultPermissions = new List<Permission>
+            {
+                new Permission { Name = "Ver Dashboard", Controller = "Home", Action = "Index", Description = "Acceso a la vista principal con estadísticas en tiempo real." },
+                new Permission { Name = "Control de Conectores", Controller = "Home", Action = "Control", Description = "Permite iniciar/detener cargas remotamente y ver detalles técnicos del conector." },
+                new Permission { Name = "Gestión de Usuarios", Controller = "Users", Action = "Index", Description = "Permite crear, editar y eliminar usuarios del sistema." },
+                new Permission { Name = "Gestión de Roles", Controller = "Roles", Action = "Index", Description = "Permite crear roles y asignar permisos a los mismos." },
+                new Permission { Name = "Lista de Cargadores", Controller = "Home", Action = "ChargePoint", Description = "Ver listado y estado de todos los cargadores conectados." },
+                new Permission { Name = "Gestión de Clientes", Controller = "Customers", Action = "Index", Description = "Administración de clientes y sus Tags RFID." },
+                new Permission { Name = "Historial de Transacciones", Controller = "Home", Action = "Transactions", Description = "Ver historial completo de cargas realizadas." },
+                new Permission { Name = "Configuración del Sistema", Controller = "Settings", Action = "Index", Description = "Acceso a configuraciones globales (precios, nombre de empresa, etc)." },
+                new Permission { Name = "Reportes", Controller = "Home", Action = "ChargeReport", Description = "Generación y exportación de reportes de consumo." },
+                new Permission { Name = "Registro de Eventos", Controller = "Home", Action = "SystemEvents", Description = "Auditoría de eventos y errores del sistema." },
+                new Permission { Name = "Carga Rápida", Controller = "Home", Action = "QuickStart", Description = "Interfaz simplificada para iniciar cargas manuales rápidamente." },
+                new Permission { Name = "Vista de Conectores", Controller = "Home", Action = "Connector", Description = "Configuración y estado detallado de cada conector." },
+                new Permission { Name = "Administración de Tags", Controller = "Home", Action = "ChargeTag", Description = "Gestión de tarjetas RFID y tokens de autenticación." },
+                new Permission { Name = "Diagnósticos", Controller = "Home", Action = "Diagnostics", Description = "Herramientas técnicas y visualización de logs." },
+            };
+
+            foreach (var perm in defaultPermissions)
+            {
+                if (!await _localDb.Permissions.AnyAsync(p => p.Controller == perm.Controller && p.Action == perm.Action))
+                {
+                    _localDb.Permissions.Add(perm);
+                }
+                else 
+                {
+                    // Update description if it exists but is empty
+                    var existing = await _localDb.Permissions.FirstOrDefaultAsync(p => p.Controller == perm.Controller && p.Action == perm.Action);
+                    if (existing != null && string.IsNullOrEmpty(existing.Description))
+                    {
+                        existing.Description = perm.Description;
+                        existing.Name = perm.Name; // Ensure nice name too
+                    }
+                }
+            }
+            await _localDb.SaveChangesAsync();
+        }
+
         private string GetFullExceptionMessage(Exception ex)
         {
             if (ex == null) return "Unknown error";

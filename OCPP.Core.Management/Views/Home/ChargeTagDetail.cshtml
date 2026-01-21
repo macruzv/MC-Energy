@@ -12,136 +12,110 @@
     {
         @Html.AntiForgeryToken()
 
-        <h4>@Localizer["EditChargeTag"]</h4>
-        <br />
-        <div class="container">
-            <div class="row">
-                <div class="col-sm-2 align-self-center">
-                    <div class="form-group">
-                        <label class="inline-label" for="TagId">@Localizer["ChargeTagIdLabel"]</label>
-                    </div>
-                </div>
-                @if (Model.CurrentTagId == "@")
-                {
-                    <div class="col-sm-6">
-                        <div class="form-group">
-                            <input type="text" class="form-control" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 50)" data-val-length-max="50" data-val-required="@Localizer["RequiredField"]" id="TagId" maxlength="50" name="TagId" placeholder="@Localizer["ChargeTagIdPlaceholder"]" value="@Model.TagId">
-                        </div>
-                    </div>
-                    <div class="col-sm-2">
-                        <span class="field-validation-valid text-danger" data-valmsg-for="TagId" data-valmsg-replace="true"></span>
-                    </div>
-                }
-                else
-                {
-                    <div class="col-sm-6">
-                        <div class="form-group">
-                            <input type="text" readonly class="form-control" id="TagId" name="TagId" placeholder="@Localizer["ChargeTagIdPlaceholder"]" value="@Model.TagId">
-                        </div>
-                    </div>
-                }
+        <div class="mb-4">
+            <a href="javascript:history.back()" class="text-muted small"><i class="fas fa-arrow-left"></i> @Localizer["Back"]</a>
+        </div>
+
+        <div class="glass-panel">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="h4 mb-0 font-weight-bold">
+                    <i class="fas fa-tag text-primary-md mr-2"></i> @Localizer["EditChargeTag"]
+                </h2>
+                <button type="submit" class="btn btn-primary-md">
+                    <i class="fas fa-save"></i> @Localizer[(Model.CurrentTagId == "@") ? "SaveNew" : "Save"]
+                </button>
             </div>
+
             <div class="row">
-                <div class="col-sm-2 align-self-center">
-                    <div class="form-group">
-                        <label class="inline-label" for="TagName">@Localizer["ChargeTagNameLabel"]</label>
+                <div class="col-md-6">
+                    <div class="mb-4">
+                        <label class="form-label-md" for="TagId">@Localizer["ChargeTagIdLabel"]</label>
+                        @if (Model.CurrentTagId == "@")
+                        {
+                            <input type="text" class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 50)" data-val-length-max="50" data-val-required="@Localizer["RequiredField"]" id="TagId" maxlength="50" name="TagId" placeholder="@Localizer["ChargeTagIdPlaceholder"]" value="@Model.TagId">
+                            <span class="field-validation-valid text-danger small mt-1" data-valmsg-for="TagId" data-valmsg-replace="true"></span>
+                        }
+                        else
+                        {
+                            <input type="text" readonly class="form-control-md w-100 text-muted" id="TagId" name="TagId" value="@Model.TagId">
+                        }
                     </div>
-                </div>
-                <div class="col-sm-6">
-                    <div class="form-group">
-                        <input class="form-control" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 200)" data-val-length-max="200" data-val-required="@Localizer["RequiredField"]" id="TagName" maxlength="200" name="TagName" placeholder="@Localizer["ChargeTagNamePlaceholder"]" type="text" value="@Model.TagName" />
+
+                    <div class="mb-4">
+                        <label class="form-label-md" for="TagName">@Localizer["ChargeTagNameLabel"]</label>
+                        <input class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 200)" data-val-length-max="200" data-val-required="@Localizer["RequiredField"]" id="TagName" maxlength="200" name="TagName" placeholder="@Localizer["ChargeTagNamePlaceholder"]" type="text" value="@Model.TagName" />
+                        <span class="field-validation-valid text-danger small mt-1" data-valmsg-for="TagName" data-valmsg-replace="true"></span>
                     </div>
-                </div>
-                <div class="col-sm-2">
-                    <span class="field-validation-valid text-danger" data-valmsg-for="TagName" data-valmsg-replace="true"></span>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-sm-2 align-self-center">
-                    <div class="form-group">
-                        <label class="inline-label" for="ParentTagId">@Localizer["GroupNameLabel"]</label>
-                    </div>
-                </div>
-                <div class="col-sm-6">
-                    <div class="form-group d-flex">
-                        <select class="form-control" id="ParentTagId" name="ParentTagId">
-                            <option value="">-- @Localizer["GroupNamePlaceholder"] --</option>
-                            @if (ViewBag.TagGroups != null)
-                            {
-                                foreach (var group in (List<OCPP.Core.Database.TagGroup>)ViewBag.TagGroups)
+
+                    <div class="mb-4">
+                        <label class="form-label-md" for="ParentTagId">@Localizer["GroupNameLabel"]</label>
+                        <div class="d-flex">
+                            <select class="form-control-md w-100" id="ParentTagId" name="ParentTagId">
+                                <option value="">-- @Localizer["GroupNamePlaceholder"] --</option>
+                                @if (ViewBag.TagGroups != null)
                                 {
-                                    @if (Model.ParentTagId == group.Name)
+                                    foreach (var group in (List<OCPP.Core.Database.TagGroup>)ViewBag.TagGroups)
                                     {
-                                        <option value="@group.Name" selected>@group.Name</option>
-                                    }
-                                    else
-                                    {
-                                        <option value="@group.Name">@group.Name</option>
+                                        if (Model.ParentTagId == group.Name)
+                                        {
+                                            <option value="@group.Name" selected>@group.Name</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@group.Name">@group.Name</option>
+                                        }
                                     }
                                 }
-                            }
-                        </select>
-                        <a asp-controller="TagGroups" asp-action="Index" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" class="btn btn-outline-info ml-2" title="Gestionar Grupos">
-                            <i class="fas fa-cog"></i>
-                        </a>
+                            </select>
+                            <a asp-controller="TagGroups" asp-action="Index" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" class="btn btn-outline-info ml-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 38px; border-radius: 12px;" title="Gestionar Grupos">
+                                <i class="fas fa-cog"></i>
+                            </a>
+                        </div>
+                        <span class="field-validation-valid text-danger small mt-1" data-valmsg-for="ParentTagId" data-valmsg-replace="true"></span>
                     </div>
                 </div>
-                <div class="col-sm-2">
-                    <span class="field-validation-valid text-danger" data-valmsg-for="ParentTagId" data-valmsg-replace="true"></span>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-sm-2 align-self-center">
-                    <div class="form-group">
-                        <label class="inline-label" for="expiryDatetimepicker">@Localizer["ChargeTagExpirationLabel"]</label>
-                    </div>
-                </div>
-                <div class="col-sm-6">
-                    <div class="form-group">
-                        <div class="input-group date" id="expiryDatetimepicker" style="max-width: 210px">
-                            <input type="text" class="form-control" id="ExpiryDate" name="ExpiryDate" value="@Model.ExpiryDate?.ToString("dd/MM/yyyy")" placeholder="dd/MM/yyyy" autocomplete="off">
+
+                <div class="col-md-6 border-left border-secondary" style="border-left: 1px solid var(--glass-border) !important;">
+                    <div class="mb-4">
+                        <label class="form-label-md" for="ExpiryDate">@Localizer["ChargeTagExpirationLabel"]</label>
+                        <div class="input-group date" id="expiryDatetimepicker">
+                            <input type="text" class="form-control-md w-100" id="ExpiryDate" name="ExpiryDate" value="@Model.ExpiryDate?.ToString("dd/MM/yyyy")" placeholder="dd/MM/yyyy" autocomplete="off" style="border-top-right-radius: 0; border-bottom-right-radius: 0;">
                             <div class="input-group-append">
-                                <span class="input-group-text">
+                                <span class="input-group-text bg-dark border-secondary text-white" style="border-top-right-radius: 12px; border-bottom-right-radius: 12px; border: 1px solid rgba(255,255,255,0.1); border-left: none;">
                                     <i class="fa fa-calendar"></i>
                                 </span>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-sm-2 align-self-center">
-                    <label class="form-check-label inline-label" for="Blocked">@Localizer["ChargeTagBlockedLabel"]</label>
-                </div>
-                <div class="col-sm-6">
-                    <div class="form-check">
-                        @Html.CheckBoxFor(m => m.Blocked, new { @class = "form-check-input checkbox-lg" })
+
+                    <div class="mb-4 pt-2">
+                        <div class="custom-control custom-switch">
+                            @Html.CheckBoxFor(m => m.Blocked, new { @class = "custom-control-input", @id = "BlockedSwitch" })
+                            <label class="custom-control-label font-weight-bold text-white" for="BlockedSwitch">@Localizer["ChargeTagBlockedLabel"]</label>
+                        </div>
+                        <small class="text-muted d-block mt-1 pl-1">Si se activa, esta etiqueta no podrá iniciar cargas.</small>
                     </div>
                 </div>
             </div>
-            <div class="row">
-                <div class="col-sm-12 text-danger">
+
+            @if (!string.IsNullOrEmpty(ViewBag.ErrorMsg))
+            {
+                <div class="alert alert-danger mt-3">
                     @ViewBag.ErrorMsg
                 </div>
-            </div>
-            <div class="row">
-                <div class="col-sm-1">
-                    &nbsp;
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-sm-2">
-                    <button type="submit" class="btn btn-primary" id="btnSave"><i class=" fas fa-save"></i>&nbsp;@Localizer[(Model.CurrentTagId == "@") ? "SaveNew" : "Save"].Value</button>
-                </div>
-                <div class="col-sm-2">
-                    <button type="button" class="btn btn-secondary" id="btnBack" onclick="history.back()">@Localizer["Back"].Value</button>
-                </div>
+            }
+
+            <div class="mt-4 border-top pt-4 d-flex" style="border-top: 1px solid var(--glass-border) !important;">
                 @if (Model.CurrentTagId != "@")
                 {
-                    <div class="col-sm-2">
-                        <button type="button" class="btn btn-warning" id="btnDelete" onclick="DeleteTag()"><i class="fas fa-trash"></i>&nbsp;@Localizer["Delete"].Value</button>
-                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-md mr-auto" id="btnDelete" onclick="DeleteTag()">
+                        <i class="fas fa-trash"></i> @Localizer["Delete"]
+                    </button>
                 }
+                
+                <button type="button" class="btn btn-outline-secondary btn-md ml-auto" id="btnBack" onclick="history.back()">
+                    @Localizer["Back"]
+                </button>
             </div>
         </div>
         <input type="hidden" name="action" id="hidAction" value="" />

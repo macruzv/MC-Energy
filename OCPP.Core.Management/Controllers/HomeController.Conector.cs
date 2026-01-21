@@ -225,39 +225,41 @@ namespace OCPP.Core.Management.Controllers
                 if (onlineStatus != null && onlineStatus.OnlineConnectors != null && 
                     onlineStatus.OnlineConnectors.ContainsKey(ConnectorId))
                 {
-                    var ocs = onlineStatus.OnlineConnectors[ConnectorId];
-                    string realStatus = ocs.Status.ToString();
-                    string ocppStatus = ocs.OcPPStatus ?? string.Empty;
-                    
-                    // If the charger is NOT currently Charging/Suspended but we have a transaction,
-                    // and it's not in Preparing either, it might be a ghost session from a previous failure.
-                    // IMPORTANT: We only clear activeTx if we are CERTAIN it's not a real charge.
-                    // If ocppStatus is available, we use it. Otherwise we fall back to general Occupied.
-                    bool isActuallyCharging = (ocppStatus == "Charging" || ocppStatus == "SuspendedEVSE" || ocppStatus == "SuspendedEV");
-                    
-                    if (activeTx != null && !isActuallyCharging)
+                    if (onlineStatus.OnlineConnectors.TryGetValue(ConnectorId, out var ocs) && ocs != null)
                     {
-                        // If status is Available, it's definitely a ghost.
-                        // If it's Occupied/Preparing but NOT "Charging" according to raw OCPP, 
-                        // and it's been some time, it might be a ghost (e.g. cable plugged but no session).
-                        if (realStatus == "Available" || realStatus == "Unavailable" || realStatus == "Faulted")
+                        string realStatus = ocs.Status.ToString();
+                        string ocppStatus = ocs.OcPPStatus ?? string.Empty;
+                        
+                        // If the charger is NOT currently Charging/Suspended but we have a transaction,
+                        // and it's not in Preparing either, it might be a ghost session from a previous failure.
+                        // IMPORTANT: We only clear activeTx if we are CERTAIN it's not a real charge.
+                        // If ocppStatus is available, we use it. Otherwise we fall back to general Occupied.
+                        bool isActuallyCharging = (ocppStatus == "Charging" || ocppStatus == "SuspendedEVSE" || ocppStatus == "SuspendedEV");
+                        
+                        if (activeTx != null && !isActuallyCharging)
                         {
-                            activeTx = null;
-                        }
-                        else if (realStatus == "Occupied" || realStatus == "Preparing")
-                        {
-                            // If it's Occupied but NOT Charging according to raw OCPP, it might be just "Connected" 
-                            // or it might be a manual start that hasn't reached "Charging" status yet.
-                            // We keep the transaction if:
-                            // 1. It started less than 1 minute ago (starting up).
-                            // 2. Or there is actual power flow (ChargeRateKW > 0).
-                            
-                            bool hasPowerFlow = (ocs.ChargeRateKW > 0);
-                            bool isVeryRecent = (activeTx.StartTime > DateTime.UtcNow.AddMinutes(-1));
-
-                            if (!hasPowerFlow && !isVeryRecent)
+                            // If status is Available, it's definitely a ghost.
+                            // If it's Occupied/Preparing but NOT "Charging" according to raw OCPP, 
+                            // and it's been some time, it might be a ghost (e.g. cable plugged but no session).
+                            if (realStatus == "Available" || realStatus == "Unavailable" || realStatus == "Faulted")
                             {
                                 activeTx = null;
+                            }
+                            else if (realStatus == "Occupied" || realStatus == "Preparing")
+                            {
+                                // If it's Occupied but NOT Charging according to raw OCPP, it might be just "Connected" 
+                                // or it might be a manual start that hasn't reached "Charging" status yet.
+                                // We keep the transaction if:
+                                // 1. It started less than 1 minute ago (starting up).
+                                // 2. Or there is actual power flow (ChargeRateKW > 0).
+                                
+                                bool hasPowerFlow = (ocs.ChargeRateKW > 0);
+                                bool isVeryRecent = (activeTx.StartTime > DateTime.UtcNow.AddMinutes(-1));
+
+                                if (!hasPowerFlow && !isVeryRecent)
+                                {
+                                    activeTx = null;
+                                }
                             }
                         }
                     }
@@ -266,6 +268,15 @@ namespace OCPP.Core.Management.Controllers
                 ViewBag.ChargePoint = cp;
                 ViewBag.Connector = dbConn;
                 ViewBag.ActiveTransaction = activeTx;
+                
+                string activeCustomerName = null;
+                if (activeTx != null && !string.IsNullOrEmpty(activeTx.CustomerIdentifier))
+                {
+                    var customer = DbContext.Customers.FirstOrDefault(c => c.Identifier == activeTx.CustomerIdentifier);
+                    activeCustomerName = customer?.Name;
+                }
+                ViewBag.ActiveCustomerName = activeCustomerName;
+
                 ViewBag.OnlineStatus = onlineStatus;
 
                 // Load valid Tags for manual selection
@@ -280,6 +291,7 @@ namespace OCPP.Core.Management.Controllers
             catch (Exception exp)
             {
                 Logger.LogError(exp, "Control: Error loading control page");
+                TempData["ErrMessage"] = exp.Message;
                 return RedirectToAction("Error");
             }
         }
@@ -357,7 +369,13 @@ namespace OCPP.Core.Management.Controllers
                 ViewBag.AllConnectors = await connQuery
                     .ToListAsync();
 
-                ViewBag.Customers = await DbContext.Customers.OrderBy(c => c.Name).ToListAsync();
+                // Load customers with their charge tags (including expiry info)
+                var customersWithTags = await DbContext.Customers
+                    .Include(c => c.ChargeTags)
+                    .OrderBy(c => c.Name)
+                    .ToListAsync();
+
+                ViewBag.Customers = customersWithTags;
 
                 return View(model);
             }
@@ -373,7 +391,6 @@ namespace OCPP.Core.Management.Controllers
             var tx = DbContext.Transactions.FirstOrDefault(t => t.TransactionId == id);
             if (tx == null) return NotFound();
 
-            // Buscar el nombre del cliente asociado al Tag
             // Buscar el nombre del cliente asociado al Tag
             string customerName = null;
             if (!string.IsNullOrEmpty(tx.StartTagId))
@@ -394,6 +411,25 @@ namespace OCPP.Core.Management.Controllers
 
             ViewBag.CustomerName = customerName;
 
+            // Cargar información de usuarios (operador y cobrador)
+            string operatorName = null;
+            string collectorName = null;
+
+            if (tx.OperatorUserId.HasValue)
+            {
+                var operatorUser = DbContext.Users.FirstOrDefault(u => u.UserId == tx.OperatorUserId.Value);
+                operatorName = !string.IsNullOrEmpty(operatorUser?.Name) ? operatorUser.Name : operatorUser?.Username;
+            }
+
+            if (tx.CollectorUserId.HasValue)
+            {
+                var collectorUser = DbContext.Users.FirstOrDefault(u => u.UserId == tx.CollectorUserId.Value);
+                collectorName = !string.IsNullOrEmpty(collectorUser?.Name) ? collectorUser.Name : collectorUser?.Username;
+            }
+
+            ViewBag.OperatorName = operatorName;
+            ViewBag.CollectorName = collectorName;
+
             var priceSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "PricePerKWh");
             ViewBag.PricePerKWh = priceSetting?.Value ?? "0.00";
 
@@ -405,6 +441,11 @@ namespace OCPP.Core.Management.Controllers
 
             ViewBag.PrinterDPI = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Printer_DPI")?.Value ?? "150";
             ViewBag.PrinterWidth = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Printer_Width")?.Value ?? "56";
+
+            // Billing Settings
+            ViewBag.BillingMode = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Billing_Mode")?.Value ?? "Energy";
+            ViewBag.PricingType = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Pricing_Type")?.Value ?? "Fixed";
+            ViewBag.PricingSchedules = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Pricing_Schedules")?.Value ?? "[]";
 
             return View(tx);
         }

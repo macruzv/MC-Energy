@@ -110,7 +110,14 @@ namespace OCPP.Core.Management.Controllers
                     }
                 }
 
-                worksheet.Columns().AdjustToContents(); // Auto-scaling the column width
+                try
+                {
+                    worksheet.Columns().AdjustToContents(); // Auto-scaling the column width
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "ChargeReportXlsx: Error adjusting columns to contents");
+                }
 
                 using var stream = new MemoryStream();
                 workbook.SaveAs(stream);

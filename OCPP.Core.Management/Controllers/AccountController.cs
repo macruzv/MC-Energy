@@ -114,7 +114,7 @@ namespace OCPP.Core.Management.Controllers
             }
             else
             {
-                return RedirectToAction(nameof(HomeController.Index), Constants.HomeController);
+                return RedirectToAction(nameof(HomeController.Landing), Constants.HomeController);
             }
         }
     }

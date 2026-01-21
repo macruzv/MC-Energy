@@ -38,6 +38,30 @@ namespace OCPP.Core.Management.Controllers
                 {
                     string serverApiUrl = base.Config.GetValue<string>("ServerApiUrl");
                     string apiKeyConfig = base.Config.GetValue<string>("ApiKey");
+
+                    // Track Collector (User who stopped the charge)
+                    if (int.TryParse(tId, out int transactionId))
+                    {
+                        try 
+                        {
+                            var transaction = DbContext.Transactions.Find(transactionId);
+                            if (transaction != null)
+                            {
+                                var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                                if (!string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out int uid))
+                                {
+                                     transaction.CollectorUserId = uid;
+                                     DbContext.SaveChanges();
+                                     Logger.LogInformation("RemoteStop: Set CollectorUserId={0} for TransactionId={1}", uid, transactionId);
+                                }
+                            }
+                        }
+                        catch(Exception ex)
+                        {
+                            Logger.LogError(ex, "RemoteStop: Error updating CollectorUserId");
+                        }
+                    }
+
                     if (!string.IsNullOrEmpty(serverApiUrl))
                     {
                         try

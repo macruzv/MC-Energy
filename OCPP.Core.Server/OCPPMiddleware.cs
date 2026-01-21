@@ -69,6 +69,7 @@ namespace OCPP.Core.Server
             public string Identifier { get; set; }
             public string Phone { get; set; }
             public string Email { get; set; }
+            public int? OperatorUserId { get; set; }
             public DateTime Timestamp { get; set; }
         }
 
@@ -606,20 +607,28 @@ namespace OCPP.Core.Server
                                         string customerId = context.Request.Query["cid"];
                                         string customerPhone = context.Request.Query["tel"];
                                         string customerEmail = context.Request.Query["eml"];
+                                        string userId = context.Request.Query["uId"];
 
-                                        if (!string.IsNullOrEmpty(customerId))
+                                        int? operatorUserId = null;
+                                        if (!string.IsNullOrEmpty(userId) && int.TryParse(userId, out int uid))
+                                        {
+                                            operatorUserId = uid;
+                                        }
+
+                                        if (!string.IsNullOrEmpty(customerId) || operatorUserId.HasValue)
                                         {
                                             var customerInfo = new CustomerInfo
                                             {
                                                 Identifier = customerId,
                                                 Phone = customerPhone,
                                                 Email = customerEmail,
+                                                OperatorUserId = operatorUserId,
                                                 Timestamp = DateTime.Now
                                             };
 
                                             int.TryParse(urlConnectorId, out int connectorId);
                                             _pendingCustomerData[(status.Id, connectorId)] = customerInfo;
-                                            _logger.LogInformation("OCPPMiddleware RemoteStart => Storing pending customer info for CP={0} / CN={1}: {2}", status.Id, connectorId, customerId);
+                                            _logger.LogInformation("OCPPMiddleware RemoteStart => Storing pending data for CP={0} / CN={1}: Cust={2}, Admin={3}", status.Id, connectorId, customerId, operatorUserId);
                                         }
 
                                         // OCPP V1.6

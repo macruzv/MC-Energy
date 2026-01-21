@@ -28,6 +28,23 @@ namespace OCPP.Core.Management.Controllers
             return View(roles);
         }
 
+        public IActionResult Create()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Create(Role role)
+        {
+            if (ModelState.IsValid)
+            {
+                _context.Roles.Add(role);
+                await _context.SaveChangesAsync();
+                return RedirectToAction(nameof(Index));
+            }
+            return View(role);
+        }
+
         public async Task<IActionResult> Permissions(int id)
         {
             var role = await _context.Roles

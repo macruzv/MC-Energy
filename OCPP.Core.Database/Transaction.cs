@@ -41,6 +41,8 @@ namespace OCPP.Core.Database
         public string CustomerIdentifier { get; set; }
         public string CustomerPhone { get; set; }
         public string CustomerEmail { get; set; }
+        public int? OperatorUserId { get; set; }
+        public int? CollectorUserId { get; set; }
         public virtual ChargePoint ChargePoint { get; set; }
     }
 }

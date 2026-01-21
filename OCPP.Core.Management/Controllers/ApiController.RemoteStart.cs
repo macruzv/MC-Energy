@@ -23,7 +23,6 @@ namespace OCPP.Core.Management.Controllers
     {
         [Authorize]
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-        [HttpGet("RemoteStart/{Id}")]
         public async Task<IActionResult> RemoteStart(string Id, int cId, string tag, string customerId = null, string customerPhone = null, string customerEmail = null)
         {
             if (User != null && !User.IsInRole(Constants.AdminRoleName) && !User.IsInRole(Constants.OperatorRoleName))
@@ -61,6 +60,13 @@ namespace OCPP.Core.Management.Controllers
                                 if (!string.IsNullOrEmpty(customerId)) queryParams.Add($"cid={Uri.EscapeDataString(customerId)}");
                                 if (!string.IsNullOrEmpty(customerPhone)) queryParams.Add($"tel={Uri.EscapeDataString(customerPhone)}");
                                 if (!string.IsNullOrEmpty(customerEmail)) queryParams.Add($"eml={Uri.EscapeDataString(customerEmail)}");
+                                
+                                // Append Operator User ID
+                                var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                                if (!string.IsNullOrEmpty(userIdStr))
+                                {
+                                    queryParams.Add($"uId={Uri.EscapeDataString(userIdStr)}");
+                                }
                                 
                                 if (queryParams.Count > 0)
                                 {

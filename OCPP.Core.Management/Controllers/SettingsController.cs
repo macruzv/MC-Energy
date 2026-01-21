@@ -56,6 +56,11 @@ namespace OCPP.Core.Management.Controllers
 
             ViewBag.IsSqlServer = DbContext.Database.IsSqlServer();
 
+            // Billing Settings
+            ViewBag.BillingMode = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Billing_Mode")?.Value ?? "Energy";
+            ViewBag.PricingType = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Pricing_Type")?.Value ?? "Fixed";
+            ViewBag.PricingSchedules = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Pricing_Schedules")?.Value ?? "[]";
+
             return View();
         }
 
@@ -111,6 +116,37 @@ namespace OCPP.Core.Management.Controllers
 
             await DbContext.SaveChangesAsync();
             TempData["SuccessMessage"] = "Precio por kWh actualizado.";
+            return RedirectToAction("Index");
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SaveBillingSettings(string billingMode, string pricingType, string pricingSchedules)
+        {
+            DbContext.CheckDatabase();
+            if (!User.IsInRole(Constants.AdminRoleName)) return Unauthorized();
+
+            var settingsToUpdate = new Dictionary<string, string>
+            {
+                { "Billing_Mode", billingMode },
+                { "Pricing_Type", pricingType },
+                { "Pricing_Schedules", pricingSchedules }
+            };
+
+            foreach (var item in settingsToUpdate)
+            {
+                var setting = await DbContext.SystemSettings.FirstOrDefaultAsync(s => s.SettingId == item.Key);
+                if (setting == null)
+                {
+                    DbContext.SystemSettings.Add(new SystemSetting { SettingId = item.Key, Value = item.Value });
+                }
+                else
+                {
+                    setting.Value = item.Value;
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+            TempData["SuccessMessage"] = "Configuración de facturación guardada correctamente.";
             return RedirectToAction("Index");
         }
 

@@ -1,0 +1,143 @@
+@model IEnumerable<OCPP.Core.Database.ErrorCatalogEntry>
+@{
+    ViewData["Title"] = "Catálogo de Diagnóstico";
+}
+
+<div class="mb-4">
+    <a href="~/" class="text-muted small"><i class="fas fa-home"></i> Dashboard</a>
+    <span class="mx-2 text-muted">/</span>
+    <span class="small font-weight-bold">Soporte Técnico</span>
+    <span class="mx-2 text-muted">/</span>
+    <span class="small font-weight-bold">Catálogo de Diagnóstico</span>
+</div>
+
+<div class="header-section text-center mb-5">
+    <h1 class="display-4 font-weight-bold" style="background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px;">Catálogo de Diagnóstico</h1>
+    <p class="text-muted">Guía técnica para la resolución de eventos y errores de cargadores</p>
+</div>
+
+<!-- Search Bar -->
+<div class="row justify-content-center mb-5">
+    <div class="col-md-6">
+        <form method="get" action="@Url.Action("Diagnostics")" class="position-relative">
+            <i class="fas fa-search position-absolute text-muted" style="left: 20px; top: 50%; transform: translateY(-50%);"></i>
+            <input type="text" name="search" class="form-control glass-panel pl-5 py-4 text-white border-0 shadow-glow" 
+                   placeholder="Buscar por código de error o descripción..." value="@ViewData["Search"]"
+                   style="border-radius: 40px; background: rgba(255, 255, 255, 0.05) !important;">
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    @if (Model != null && Model.Any())
+    {
+        @foreach (var item in Model)
+        {
+            var sevClass = item.Severity?.ToLower() switch {
+                "critical" => "sev-high",
+                "high" => "sev-high",
+                "medium" => "sev-med",
+                "low" => "sev-low",
+                _ => "sev-low"
+            };
+
+            var icon = item.Category?.ToLower() switch {
+                "hardware" => "fa-microchip",
+                "protocol" => "fa-network-wired",
+                "electrical" => "fa-bolt",
+                "network" => "fa-wifi",
+                _ => "fa-exclamation-circle"
+            };
+
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="glass-panel h-100 p-4 d-flex flex-direction-column transition-all hover-transform" 
+                     style="border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);">
+                    <div class="w-100">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="small font-weight-bold text-primary-md text-uppercase" style="letter-spacing: 1px;">
+                                <i class="fas @icon mr-2"></i> @item.ErrorCode
+                            </span>
+                            <span class="badge-severity @sevClass ml-auto">@item.Severity</span>
+                        </div>
+                        <h4 class="h5 font-weight-bold text-white mb-3">@item.Title</h4>
+                        <p class="small text-muted mb-4" style="line-height: 1.6;">@item.Description</p>
+                        
+                        <div class="border-top border-secondary pt-3 mt-auto">
+                            <div class="mb-3">
+                                <small class="text-muted d-block font-weight-bold text-uppercase mb-1" style="font-size: 0.65rem;">Causas Comunes:</small>
+                                <div class="small text-light" style="white-space: pre-wrap;">@item.CommonCauses</div>
+                            </div>
+                            
+                            <button class="btn btn-sm btn-outline-primary-md rounded-pill px-3 mt-2" 
+                                    onclick="Swal.fire({
+                                        title: '<span class=\'text-white\'>@item.Title</span>',
+                                        html: '<div class=\'text-left text-light small\'>' +
+                                              '<p class=\'mb-3\'>@item.Description</p>' +
+                                              '<div class=\'p-3 mb-3 bg-dark-md rounded\' style=\'background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-left: 4px solid var(--primary-md);\'>' +
+                                              '<h6 class=\'text-primary-md font-weight-bold text-uppercase mb-2\' style=\'font-size: 0.75rem;\'>Acción Sugerida</h6>' +
+                                              '<span>@item.SuggestedSolution.Replace("\n", "<br>")</span>' +
+                                              '</div>' +
+                                              '</div>',
+                                        icon: 'info',
+                                        background: '#1c1b1f',
+                                        confirmButtonColor: '#4f46e5',
+                                        confirmButtonText: 'Entendido'
+                                    })">
+                                <i class="fas fa-tools mr-1"></i> Ver Solución
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="col-12 text-center py-5">
+            <i class="fas fa-search fa-3x text-muted mb-3 opacity-50"></i>
+            <h4 class="text-muted">No se encontraron diagnósticos</h4>
+            <p class="small text-muted">Intenta buscar con otros términos.</p>
+        </div>
+    }
+</div>
+
+<style>
+    .badge-severity {
+        font-size: 0.65rem;
+        padding: 3px 8px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        font-weight: 700;
+    }
+    .sev-high { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .sev-med { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .sev-low { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    
+    .hover-transform {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .hover-transform:hover {
+        transform: translateY(-5px);
+        background: rgba(255, 255, 255, 0.08) !important;
+        border-color: var(--primary-md) !important;
+        box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+    }
+    
+    .bg-dark-md { background-color: #121212; }
+
+    .btn-outline-primary-md {
+        color: #121212 !important;
+        background: var(--md-sys-color-primary) !important;
+        border: none !important;
+        transition: all 0.2s;
+        font-weight: 700;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .btn-outline-primary-md:hover {
+        background: #eaddff !important;
+        box-shadow: 0 0 15px rgba(208, 188, 255, 0.5);
+        transform: translateY(-2px);
+        text-decoration: none;
+        color: #121212 !important;
+    }
+</style>

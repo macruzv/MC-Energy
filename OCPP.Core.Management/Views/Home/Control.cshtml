@@ -124,7 +124,7 @@
                             @if (!string.IsNullOrEmpty(activeTx.CustomerIdentifier))
                             {
                                 <div class="badge badge-info-soft py-2 px-4 rounded-pill mb-3">
-                                    <i class="fas fa-user-check mr-2"></i> SESIÓN: @activeTx.CustomerIdentifier
+                                    <i class="fas fa-user-check mr-2"></i> SESIÓN: @(ViewBag.ActiveCustomerName ?? activeTx.CustomerIdentifier)
                                 </div>
                             }
 
@@ -141,47 +141,6 @@
                                     </div>
                                 }
                             }
-                        }
-                    </div>
-                </div>
-            </div>
-
-            <!-- Persistence Log -->
-            <div class="card glass">
-                <div class="card-header border-0 bg-transparent">
-                    <h5 class="mb-0"><i class="fas fa-history mr-2"></i> Persistencia de Datos</h5>
-                </div>
-                <div class="card-body p-0" id="persistence-container">
-                    <div class="list-group list-group-flush bg-transparent">
-                        @if (activeTx != null)
-                        {
-                            <div class="list-group-item bg-transparent border-light d-flex justify-content-between align-items-center">
-                                <div>
-                                    <small class="text-muted d-block">Inicio de Sesión</small>
-                                    <span>@activeTx.StartTime.ToLocalTime().ToString("t")</span>
-                                </div>
-                                <span class="badge badge-success badge-pill"><i class="fas fa-check"></i></span>
-                            </div>
-                            <div class="list-group-item bg-transparent border-light d-flex justify-content-between align-items-center">
-                                <div>
-                                    <small class="text-muted d-block">Última Sincronización</small>
-                                    <span id="sync-time">@(connector.LastMeterTime?.ToLocalTime().ToString("t") ?? "N/A")</span>
-                                </div>
-                                <span class="badge badge-success badge-pill"><i class="fas fa-check"></i></span>
-                            </div>
-                            <div class="list-group-item bg-transparent border-0 d-flex justify-content-between align-items-center">
-                                <div>
-                                    <small class="text-muted d-block">Lectura Actual</small>
-                                    <span id="meter-val">@(activeTx.MeterStop ?? activeTx.MeterStart) kWh</span>
-                                </div>
-                                <i class="fas fa-sync fa-spin text-info"></i>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="p-4 text-center text-muted">
-                                No hay sesión activa para rastrear resiliencia energética.
-                            </div>
                         }
                     </div>
                 </div>
@@ -209,28 +168,95 @@
                 </div>
                 <div class="col-md-12">
                     <div class="card glass p-4" id="timeline-container">
-                        <h5>Seguimiento de Sesión</h5>
-                        <div class="mt-4" style="height: 250px; border-left: 2px solid var(--md-sys-color-outline-variant); margin-left: 20px;">
-                            <div class="timeline-item">
-                                <div class="timeline-marker bg-success"></div>
-                                <div class="timeline-content">
-                                    <h6 class="mb-0">Manguera Conectada</h6>
-                                    <small class="text-muted">Listo para autorizar</small>
+                        <h5 class="mb-4">Seguimiento de Sesión</h5>
+                        
+                        <div class="row align-items-center">
+                            <!-- Left Column: Timeline -->
+                            <div class="col-md-7" style="border-right: 1px solid rgba(255,255,255,0.05);">
+                                <div style="height: 200px; border-left: 2px solid var(--md-sys-color-outline-variant); margin-left: 20px;">
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker bg-success"></div>
+                                        <div class="timeline-content">
+                                            <h6 class="mb-0">Manguera Conectada</h6>
+                                            <small class="text-muted">Listo para autorizar</small>
+                                        </div>
+                                    </div>
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker @(activeTx != null ? "bg-info" : "bg-secondary")"></div>
+                                        <div class="timeline-content">
+                                            <h6 class="mb-0">Carga Iniciada</h6>
+                                            <small class="text-muted">Registro activo en DB</small>
+                                        </div>
+                                    </div>
+                                    <div class="timeline-item current pb-0">
+                                        <div class="timeline-marker @(isOnline && currentStatus == "Charging" ? "bg-primary pulse" : "bg-secondary")"></div>
+                                        <div class="timeline-content">
+                                            <h6 class="mb-0">Transmitiendo Datos 
+                                                @if (isOnline && onlineStatus.OnlineConnectors.ContainsKey(connector.ConnectorId) && onlineStatus.OnlineConnectors[connector.ConnectorId].SoC.HasValue)
+                                                {
+                                                    <span class="badge badge-soc p-1 px-2 ml-2" style="font-size: 0.7rem; background: rgba(0, 255, 128, 0.1); color: #00ff80; border: 1px solid rgba(0, 255, 128, 0.2); border-radius: 4px;">
+                                                        <i class="fas fa-battery-three-quarters mr-1"></i> SoC <span id="val-soc-badge">@onlineStatus.OnlineConnectors[connector.ConnectorId].SoC.Value.ToString("0")</span>%
+                                                    </span>
+                                                }
+                                            </h6>
+                                            <small class="text-muted">Sincronización persistente activa</small>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="timeline-item">
-                                <div class="timeline-marker @(activeTx != null ? "bg-info" : "bg-secondary")"></div>
-                                <div class="timeline-content">
-                                    <h6 class="mb-0">Carga Iniciada</h6>
-                                    <small class="text-muted">Registro activo en DB</small>
-                                </div>
+
+                            <!-- Right Column: Persistence Data (3 Lines) -->
+                            <div class="col-md-5 pl-4" id="persistence-container">
+                                @if (activeTx != null)
+                                {
+                                    <div class="d-flex flex-column gap-3">
+                                        <div class="persistence-row">
+                                            <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem; letter-spacing: 1px;">Inicio de Sesión</small>
+                                            <div class="h5 mb-0 text-success font-weight-bold">
+                                                <i class="fas fa-history mr-2 opacity-50"></i>
+                                                @activeTx.StartTime.ToLocalTime().ToString("t")
+                                            </div>
+                                        </div>
+                                        <div class="persistence-row py-2" style="border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                            <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem; letter-spacing: 1px;">Última Sincro</small>
+                                            <div class="h5 mb-0 text-info font-weight-bold">
+                                                <i class="fas fa-sync mr-2 opacity-50"></i>
+                                                <span id="sync-time">@(connector.LastMeterTime?.ToLocalTime().ToString("t") ?? "N/A")</span>
+                                            </div>
+                                        </div>
+                                        <div class="persistence-row">
+                                            <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem; letter-spacing: 1px;">Lectura Acumulada</small>
+                                            <div class="h4 mb-0 text-white font-weight-bold">
+                                                <i class="fas fa-bolt mr-2 text-warning"></i>
+                                                <span id="meter-val">@((activeTx.MeterStop ?? activeTx.MeterStart).ToString("N2"))</span>
+                                                <small class="text-muted ml-1" style="font-size: 0.8rem;">kWh</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-center py-4 opacity-50">
+                                        <i class="fas fa-shield-alt fa-3x d-block mb-3"></i>
+                                        <p class="small mb-0">No hay sesión activa para rastrear resiliencia.</p>
+                                    </div>
+                                }
                             </div>
-                            <div class="timeline-item current">
-                                <div class="timeline-marker @(isOnline && currentStatus == "Charging" ? "bg-primary pulse" : "bg-secondary")"></div>
-                                <div class="timeline-content">
-                                    <h6 class="mb-0">Transmitiendo Datos</h6>
-                                    <small class="text-muted">Sincronización persistente activa</small>
-                                </div>
+                        </div>
+
+                        <!-- Telemetry Grid Proposal -->
+                        <div class="telemetry-grid mt-4 p-3" style="background: rgba(255,255,255,0.02); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.1); display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                            <div class="text-center">
+                                <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.6rem; letter-spacing: 1px;">Batería (BMS)</small>
+                                <span class="h5 mb-0 text-primary-md font-weight-bold"><span id="val-temp-bms">@(isOnline && onlineStatus.OnlineConnectors.ContainsKey(connector.ConnectorId) ? onlineStatus.OnlineConnectors[connector.ConnectorId].BmsTemp?.ToString("0.0") ?? "--" : "--")</span><small class="text-muted ml-1">°C</small></span>
+                            </div>
+                            <div class="text-center" style="border-left: 1px solid rgba(255,255,255,0.1); border-right: 1px solid rgba(255,255,255,0.1);">
+                                <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.6rem; letter-spacing: 1px;">Estado Carga</small>
+                                <span class="h5 mb-0 text-info font-weight-bold"><span id="val-soc-main">@(isOnline && onlineStatus.OnlineConnectors.ContainsKey(connector.ConnectorId) ? onlineStatus.OnlineConnectors[connector.ConnectorId].SoC?.ToString("0") ?? "--" : "--")</span><small class="text-muted ml-1">%</small></span>
+                            </div>
+                            <div class="text-center">
+                                <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.6rem; letter-spacing: 1px;">Equipo</small>
+                                <span class="h5 mb-0 text-primary-md font-weight-bold"><span id="val-temp-charger">@(isOnline && onlineStatus.OnlineConnectors.ContainsKey(connector.ConnectorId) ? onlineStatus.OnlineConnectors[connector.ConnectorId].ChargerTemp?.ToString("0.0") ?? "--" : "--")</span><small class="text-muted ml-1">°C</small></span>
                             </div>
                         </div>
                     </div>
@@ -242,6 +268,8 @@
 
 @section Scripts {
 <script>
+    let sessionStarting = false;
+
     function updateCustomerName(select) {
         const option = select.options[select.selectedIndex];
         const custName = option.getAttribute('data-customer');
@@ -287,33 +315,68 @@
                 if (cid) apiUrl += `&customerId=${encodeURIComponent(cid)}&customerPhone=${encodeURIComponent(tel)}&customerEmail=${encodeURIComponent(eml)}`;
 
                 fetch(apiUrl)
-                    .then(r => r.text())
+                    .then(r => {
+                        if (!r.ok) {
+                            const error = new Error(r.statusText || 'Error del servidor');
+                            error.status = r.status;
+                            throw error;
+                        }
+                        return r.text();
+                    })
                     .then(msg => {
-                        if (msg.includes('aceptado')) {
+                        if (msg.includes('aceptado') || msg.includes('Accepted')) {
                             Swal.fire({
                                 title: '¡Comando Aceptado!',
-                                text: 'El cargador ha recibido la orden de inicio.',
+                                text: 'El cargador ha recibido la orden de inicio. La carga comenzará en breve.',
                                 icon: 'success',
                                 background: '#1c1b1f',
                                 color: '#fff',
                                 confirmButtonColor: '#d0bcff'
                             }).then(() => {
-                                location.reload();
+                                // Instead of immediate reload, we enter "Starting" state
+                                sessionStarting = true;
+                                const btn = document.getElementById('btnStart');
+                                if (btn) {
+                                    btn.classList.add('disabled');
+                                    btn.disabled = true;
+                                    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> INICIANDO...';
+                                }
                             });
                         } else {
+                            // Smart Error Parsing
+                            let errorTitle = 'No se pudo iniciar';
+                            let errorText = msg;
+                            let errorIcon = 'error';
+
+                            if (msg.startsWith('Error:')) {
+                                errorText = msg.substring(6).trim(); // Remove 'Error:' prefix
+                                errorTitle = 'Atención';
+                                errorIcon = 'warning';
+                            } else if (msg.trim().startsWith('<')) {
+                                errorTitle = 'Error del Servidor';
+                                errorText = 'Ocurrió un error interno en el servidor. Por favor contacte a soporte.';
+                            } else if (msg.includes('rechazó')) {
+                                errorTitle = 'Cargador Ocupado o No Disponible';
+                                errorIcon = 'warning';
+                            }
+
                             Swal.fire({ 
-                                title: 'Error', 
-                                text: msg, 
-                                icon: 'error',
+                                title: errorTitle, 
+                                html: `<div class="text-left">${errorText}</div>`, 
+                                icon: errorIcon,
                                 background: '#1c1b1f',
-                                color: '#fff'
+                                color: '#fff',
+                                confirmButtonColor: '#cf6679'
                             });
                         }
                     })
                     .catch(err => {
+                        console.error("StartCharging Error:", err);
                         Swal.fire({ 
-                            title: 'Error de Red', 
-                            text: 'No se pudo comunicar con el servidor.', 
+                            title: 'Error de Comunicación', 
+                            html: `<div class="text-left font-weight-bold">No se pudo conectar con el servidor.</div>
+                                   <div class="text-left small text-muted mt-2">Detalle: ${err.message}</div>
+                                   <div class="text-left small text-muted mt-1">Status: ${err.status || 'N/A'}</div>`, 
                             icon: 'error',
                             background: '#1c1b1f',
                             color: '#fff'
@@ -346,19 +409,22 @@
                     .then(r => r.text())
                     .then(msg => {
                         Swal.fire({
-                            title: 'Resultado',
+                            title: 'Comando Enviado',
                             text: msg,
                             icon: 'info',
                             background: '#1c1b1f',
                             color: '#fff',
                             showCancelButton: true,
                             confirmButtonText: 'Imprimir Ticket',
-                            cancelButtonText: 'Cerrar'
+                            cancelButtonText: 'Cerrar',
+                            confirmButtonColor: '#d0bcff',
+                            cancelButtonColor: '#49454f'
                         }).then((choice) => {
                             if (choice.isConfirmed) {
                                 window.open(`@Url.Content("~/Home/Ticket/")${tId}?print=true`, '_blank');
                             }
-                            location.reload();
+                            // Eliminamos location.reload() para evitar congelamiento. 
+                            // El polling detectará el cierre de la sesión.
                         });
                     });
             }
@@ -368,11 +434,21 @@
     // Real-time status polling for better responsiveness
     setInterval(() => {
         if (!Swal.isVisible()) {
-            fetch(window.location.href)
+            // Cache busting with timestamp
+            fetch(window.location.href + (window.location.href.includes('?') ? '&' : '?') + 't=' + new Date().getTime())
                 .then(response => response.text())
                 .then(html => {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(html, 'text/html');
+
+                    // If we were waiting for a session to start, check if the "Stop" button is now present
+                    if (sessionStarting) {
+                        const newBtnStop = doc.getElementById('btnStop');
+                        if (newBtnStop) {
+                            console.log("Session detected! Clearing starting state.");
+                            sessionStarting = false;
+                        }
+                    }
 
                     // Update only specific parts to avoid flicker
                     const newStatus = doc.getElementById('status-text').innerHTML;
@@ -386,8 +462,16 @@
                     }
                     
                     const currentBtnContainer = document.getElementById('control-actions');
-                    if (currentBtnContainer && newBtnContainer && currentBtnContainer.innerHTML.trim() !== newBtnContainer.innerHTML.trim()) {
-                        currentBtnContainer.innerHTML = newBtnContainer.innerHTML;
+                    if (currentBtnContainer && newBtnContainer) {
+                        // If we are in "Starting" state, we block reverting the button container 
+                        // UNLESS the new container has a Stop button (meaning session is confirmed)
+                        const hasStopBtn = newBtnContainer.querySelector('#btnStop');
+                        
+                        if (!sessionStarting || hasStopBtn) {
+                            if (currentBtnContainer.innerHTML.trim() !== newBtnContainer.innerHTML.trim()) {
+                                currentBtnContainer.innerHTML = newBtnContainer.innerHTML;
+                            }
+                        }
                     }
 
                     const currentPersistence = document.getElementById('persistence-container');
@@ -411,10 +495,10 @@
                     }
 
                     // Update metrics
-                    ['val-kw', 'val-kwh', 'sync-time', 'meter-val'].forEach(id => {
+                    ['val-kw', 'val-kwh', 'sync-time', 'meter-val', 'val-soc-badge', 'val-soc-main', 'val-temp-bms', 'val-temp-charger'].forEach(id => {
                         const oldEl = document.getElementById(id);
                         const newEl = doc.getElementById(id);
-                        if (oldEl && newEl && oldEl.innerHTML !== newEl.innerHTML) {
+                        if (oldEl && newEl && oldEl.innerHTML.trim() !== newEl.innerHTML.trim()) {
                             oldEl.innerHTML = newEl.innerHTML;
                         }
                     });

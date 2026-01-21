@@ -25,7 +25,7 @@ namespace OCPP.Core.Management.Filters
             var action = context.RouteData.Values["action"]?.ToString();
 
             // 1. Exenciones (Acceso público o básico)
-            if (controller == "Account" || action == "AccessDenied" || (controller == "Home" && action == "Error"))
+            if (controller == "Account" || action == "AccessDenied" || (controller == "Home" && action == "Error") || (controller == "Home" && action == "Landing"))
             {
                 await next();
                 return;

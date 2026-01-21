@@ -20,7 +20,7 @@ namespace OCPP.Core.Management.Controllers
         // private readonly ILogger<HomeController> Logger; // Assuming Logger is available
 
         [Authorize]
-        public IActionResult SystemEvents(DateTime? startDate, DateTime? endDate, string chargePointId, string result, int? connectorId, int page = 1, int pageSize = 50)
+        public IActionResult SystemEvents(DateTime? startDate, DateTime? endDate, string chargePointId, string result, int? connectorId, int page = 1, int pageSize = 10)
         {
             var viewModel = new SystemEventsViewModel();
 

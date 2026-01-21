@@ -54,6 +54,34 @@ namespace OCPP.Core.Server
                 {
                     case StatusNotificationRequestStatus.Available:
                         newStatus = ConnectorStatusEnum.Available;
+                        
+                        // Fix for stuck transactions:
+                        // If status is Available, ensure any active transaction on this connector is closed.
+                        if (connectorId > 0)
+                        {
+                            try
+                            {
+                                var stuckTransactions = DbContext.Transactions
+                                    .Where(t => t.ChargePointId == ChargePointStatus.Id && t.ConnectorId == connectorId && t.StopTime == null)
+                                    .ToList();
+
+                                foreach (var txn in stuckTransactions)
+                                {
+                                    Logger.LogWarning("StatusNotification => Closing stuck transaction {0} because status is Available", txn.TransactionId);
+                                    txn.StopTime = DateTime.UtcNow;
+                                    txn.StopReason = "StatusAvailable";
+                                }
+
+                                if (stuckTransactions.Any())
+                                {
+                                    DbContext.SaveChanges();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogError(ex, "StatusNotification => Error closing stuck transactions");
+                            }
+                        }
                         break;
                     case StatusNotificationRequestStatus.Preparing:
                     case StatusNotificationRequestStatus.Charging:
