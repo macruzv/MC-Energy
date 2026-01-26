@@ -1,0 +1,1 @@
+[3,"b65906a8-1a3d-40bf-8363-3437f2f1e5fa",{"idTagInfo":{"expiryDate":"2027-01-21T00:00:00+00:00","parentIdTag":"","status":"Accepted"},"transactionId":36}]

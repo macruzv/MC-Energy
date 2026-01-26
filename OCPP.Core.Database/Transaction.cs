@@ -43,6 +43,7 @@ namespace OCPP.Core.Database
         public string CustomerEmail { get; set; }
         public int? OperatorUserId { get; set; }
         public int? CollectorUserId { get; set; }
+        public bool IsAcknowledged { get; set; }
         public virtual ChargePoint ChargePoint { get; set; }
     }
 }

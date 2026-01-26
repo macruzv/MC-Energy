@@ -1,0 +1,1 @@
+[3,"2f222625-6ebd-43eb-bda8-c7682188e62d",{"status":"Accepted","currentTime":"2026-01-20T16:50:29.582452+00:00","interval":300}]

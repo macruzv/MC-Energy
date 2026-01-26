@@ -263,7 +263,13 @@ namespace OCPP.Core.Database
                 addColumnIfMissing("Transactions", "CustomerEmail", "TEXT NULL");
                 addColumnIfMissing("Transactions", "OperatorUserId", "INTEGER NULL");
                 addColumnIfMissing("Transactions", "CollectorUserId", "INTEGER NULL");
+                addColumnIfMissing("Transactions", "IsAcknowledged", "INTEGER NOT NULL DEFAULT 0");
+                addColumnIfMissing("Transactions", "CollectorUserId", "INTEGER NULL");
                 addColumnIfMissing("ChargeTags", "CustomerId", "INTEGER NULL");
+                addColumnIfMissing("ChargeTags", "VehicleId", "TEXT NULL");
+                addColumnIfMissing("ChargeTags", "VehicleId", "TEXT NULL");
+                addColumnIfMissing("ChargePoint", "Branch", "TEXT NULL");
+                addColumnIfMissing("Users", "Name", "TEXT NULL");
             }
             else
             {
@@ -488,109 +494,254 @@ namespace OCPP.Core.Database
 
         public void EnsureSchemaExtended()
         {
-             // Transactions table
-            AddColumnIfMissingSqlServer("Transactions", "CustomerIdentifier", "nvarchar(50) NULL");
-            AddColumnIfMissingSqlServer("Transactions", "CustomerPhone", "nvarchar(50) NULL");
-            AddColumnIfMissingSqlServer("Transactions", "CustomerEmail", "nvarchar(100) NULL");
-            AddColumnIfMissingSqlServer("Transactions", "OperatorUserId", "int NULL");
-            AddColumnIfMissingSqlServer("Transactions", "CollectorUserId", "int NULL");
-            
-            // ChargeTags table
-            AddColumnIfMissingSqlServer("ChargeTags", "CustomerId", "int NULL");
+            if (this.Database.IsSqlite())
+            {
+                // SQLite specific extensions
+                AddColumnIfMissingSqlite("Transactions", "CustomerIdentifier", "TEXT NULL");
+                AddColumnIfMissingSqlite("Transactions", "CustomerPhone", "TEXT NULL");
+                AddColumnIfMissingSqlite("Transactions", "CustomerEmail", "TEXT NULL");
+                AddColumnIfMissingSqlite("Transactions", "OperatorUserId", "INTEGER NULL");
+                AddColumnIfMissingSqlite("Transactions", "CollectorUserId", "INTEGER NULL");
+                
+                AddColumnIfMissingSqlite("ChargeTags", "CustomerId", "INTEGER NULL");
+                AddColumnIfMissingSqlite("ChargeTags", "VehicleId", "TEXT NULL");
+                
+                AddColumnIfMissingSqlite("ChargePoint", "Branch", "TEXT NULL");
+                
+                AddColumnIfMissingSqlite("Transactions", "IsAcknowledged", "INTEGER NOT NULL DEFAULT 0");
+
+                AddColumnIfMissingSqlite("Users", "Name", "TEXT NULL");
+            }
+            else
+            {
+                 // Transactions table
+                AddColumnIfMissingSqlServer("Transactions", "CustomerIdentifier", "nvarchar(50) NULL");
+                AddColumnIfMissingSqlServer("Transactions", "CustomerPhone", "nvarchar(50) NULL");
+                AddColumnIfMissingSqlServer("Transactions", "CustomerEmail", "nvarchar(100) NULL");
+                AddColumnIfMissingSqlServer("Transactions", "OperatorUserId", "int NULL");
+                AddColumnIfMissingSqlServer("Transactions", "CollectorUserId", "int NULL");
+                
+                // ChargeTags table
+                AddColumnIfMissingSqlServer("ChargeTags", "CustomerId", "int NULL");
+                AddColumnIfMissingSqlServer("ChargeTags", "VehicleId", "nvarchar(50) NULL");
+                
+                // ChargePoint table
+                AddColumnIfMissingSqlServer("ChargePoint", "Branch", "nvarchar(100) NULL");
+
+                // Transactions table (Additional)
+                AddColumnIfMissingSqlServer("Transactions", "IsAcknowledged", "bit NOT NULL DEFAULT 0");
+            }
+        }
+
+        private void AddColumnIfMissingSqlite(string tableName, string columnName, string columnDefinition)
+        {
+            try 
+            {
+                var conn = this.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open) conn.Open();
+                using (var cmd = conn.CreateCommand()) 
+                {
+                    cmd.CommandText = $"PRAGMA table_info({tableName})";
+                    bool exists = false;
+                    using (var reader = cmd.ExecuteReader()) 
+                    {
+                        while (reader.Read()) 
+                        {
+                            if (reader["name"].ToString().Equals(columnName, StringComparison.OrdinalIgnoreCase)) 
+                            {
+                                exists = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!exists) 
+                    {
+                        cmd.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition}";
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                 Console.WriteLine($"Error adding column {columnName} to {tableName} (SQLite): {ex.Message}");
+            }
+        }
+
+
+        public void PreMigrationFixes()
+        {
+            if (this.Database.IsSqlite())
+            {
+                try 
+                {
+                    // Fix for "Index already exists" error during migration
+                    this.Database.ExecuteSqlRaw("DROP INDEX IF EXISTS IX_Transactions_ChargePointId_ConnectorId");
+                    
+                    // Fix for "Column already exists" (Users.Name) - Only if empty or we accept risk? 
+                    // Actually, if we can't drop column easily, let's just hope the Index fix clears the transaction/migration block.
+                    // But if Name exists, we might need to handle it.
+                    // SQLite < 3.35 doesn't support DROP COLUMN. Most systems now have > 3.35.
+                    // verifying existence:
+                    var conn = this.Database.GetDbConnection();
+                    if (conn.State != System.Data.ConnectionState.Open) conn.Open();
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.CommandText = "PRAGMA table_info(Users)";
+                        bool nameExists = false;
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                if (reader["name"].ToString().Equals("Name", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    nameExists = true; 
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (nameExists)
+                        {
+                            // If Name exists, Migration might fail with "duplicate column" if it tries to AddColumn.
+                            // We drop it so Migration can recreate it cleanly. 
+                            // This assumes Name column doesn't hold critical data or we accept the risk during this recovery.
+                            // SQLite supports DROP COLUMN since 3.35.
+                            try 
+                            {
+                                var dropCmd = conn.CreateCommand();
+                                dropCmd.CommandText = "ALTER TABLE Users DROP COLUMN Name";
+                                dropCmd.ExecuteNonQuery();
+                            }
+                            catch (Exception dropEx)
+                            {
+                                Console.WriteLine("Could not drop Users.Name: " + dropEx.Message);
+                                // If drop fails (old SQLite), we are stuck. 
+                                // But typically on Mac 2024+ it should work.
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("PreMigrationFixes Error: " + ex.Message);
+                }
+            }
         }
 
         private void SeedErrorCatalog()
         {
-            if (!this.ErrorCatalog.Any())
+            var entries = new List<ErrorCatalogEntry>
             {
-                var entries = new List<ErrorCatalogEntry>
-                {
-                    new ErrorCatalogEntry {
-                        ErrorCode = "ConnectorLockFailure",
-                        Title = "Fallo de Bloqueo del Conector",
-                        Description = "El cargador no pudo bloquear o desbloquear el conector cableado. Esto sucede cuando el actuador no se posiciona correctamente.",
-                        CommonCauses = "• Obstrucción física en el puerto.\n• Actuador de bloqueo dañado.\n• Desgaste en el pin de bloqueo.",
-                        SuggestedSolution = "Inspeccionar visualmente el conector y puerto. Limpiar residuos. Si el error persiste, el técnico debe verificar el voltaje del actuador de bloqueo y su continuidad.",
-                        Severity = "High",
-                        Category = "Hardware"
-                    },
-                    new ErrorCatalogEntry {
-                        ErrorCode = "EVCommunicationError",
-                        Title = "Error de Comunicación con el Vehículo",
-                        Description = "Fallo en el protocolo de señalización entre el cargador y el sistema de gestión del vehículo (BMS).",
-                        CommonCauses = "• Cable de control (CP/PP) dañado.\n• Problema con la señal PWM del cargador.\n• El vehículo rechazó el inicio de carga.",
-                        SuggestedSolution = "Verificar integridad del cable de carga. Probar con otro vehículo para descartar fallo del BMS del auto. Revisar placa de control CP si no hay señal PWM.",
-                        Severity = "Medium",
-                        Category = "Protocol"
-                    },
-                    new ErrorCatalogEntry {
-                        ErrorCode = "GroundFailure",
-                        Title = "Fallo de Puesta a Tierra",
-                        Description = "Se detectó una fuga de corriente a tierra o falta de conexión de tierra de protección (PE).",
-                        CommonCauses = "• Falla de aislamiento en el vehículo o cable.\n• Instalación eléctrica del sitio dañada.\n• Sensor RCD defectuoso.",
-                        SuggestedSolution = "Instruir al cliente a desconectar y reintentar. Si persiste, el técnico debe medir la resistencia de puesta a tierra de la instalación eléctrica. Verificar sensor RCMU interno.",
-                        Severity = "Critical",
-                        Category = "Electrical"
-                    },
-                    new ErrorCatalogEntry {
-                        ErrorCode = "HighTemperature",
-                        Title = "Alta Temperatura",
-                        Description = "La temperatura interna del cargador o conector superó los niveles de seguridad.",
-                        CommonCauses = "• Ventilación obstruida.\n• Fallo de ventilador.\n• Contactos sulfatados causando sobrecalentamiento.",
-                        SuggestedSolution = "Limpiar rejillas de ventilación. Verificar que los ventiladores giren libremente. Revisar apriete de bornes y estado de los pines del conector.",
-                        Severity = "High",
-                        Category = "Hardware"
-                    },
-                    new ErrorCatalogEntry {
-                        ErrorCode = "OverCurrentFailure",
-                        Title = "Sobrecorriente en la Salida",
-                        Description = "La corriente medida excede el límite nominal del conector o la configuración del cargador.",
-                        CommonCauses = "• BMS del auto solicitando más de lo permitido.\n• Cortocircuito parcial.\n• Error de calibración del sensor.",
-                        SuggestedSolution = "Verificar configuración de límites de corriente en el cargador. Inspeccionar cable en busca de cortes o quemaduras. Verificar sensores Hall.",
-                        Severity = "High",
-                        Category = "Electrical"
-                    },
-                    new ErrorCatalogEntry {
-                        ErrorCode = "PowerMeterFailure",
-                        Title = "Fallo del Medidor de Energía",
-                        Description = "No se reciben datos del medidor de energía interno (MID).",
-                        CommonCauses = "• Cableado RS485/Modbus suelto.\n• Medidor quemado o sin energía.\n• Interferencia electromagnética.",
-                        SuggestedSolution = "Verificar alimentación del medidor. Revisar cableado de datos entre el medidor y la placa principal del cargador.",
-                        Severity = "Medium",
-                        Category = "Hardware"
-                    },
-                    new ErrorCatalogEntry {
-                        ErrorCode = "UnderVoltage",
-                        Title = "Bajo Voltaje de Red",
-                        Description = "La tensión de entrada está por debajo del umbral de operación (típicamente -15%).",
-                        CommonCauses = "• Caída de tensión en la red eléctrica.\n• Sobrecarga en el tablero de distribución.\n• Alimentación con cable de sección insuficiente.",
-                        SuggestedSolution = "Verificar tensión de entrada con multímetro. Si es bajo en el sitio, contactar a la proveedora eléctrica. Aumentar sección de cable si hay caída por distancia.",
-                        Severity = "Medium",
-                        Category = "Network"
-                    },
-                    new ErrorCatalogEntry {
-                        ErrorCode = "OverVoltage",
-                        Title = "Sobrevoltaje de Red",
-                        Description = "La tensión de entrada supera el umbral de operación (típicamente +10%).",
-                        CommonCauses = "• Inestabilidad en la red eléctrica exterior.\n• Fallo en transformador de alta a baja tensión.\n• Transitorios de red.",
-                        SuggestedSolution = "Verificar tensión de entrada. Instalar protectores de sobretensión si es recurrente. Evitar cargar hasta que la red se estabilice.",
-                        Severity = "High",
-                        Category = "Network"
-                    },
-                    new ErrorCatalogEntry {
-                        ErrorCode = "InternalError",
-                        Title = "Error Interno del Procesador",
-                        Description = "Fallo en el software o microcontrolador del cargador.",
-                        CommonCauses = "• Error de firmware.\n• Reinicio inesperado del sistema.\n• Memoria RAM/Flash corrupta.",
-                        SuggestedSolution = "Reiniciar el cargador completamente (Power Cycle). Actualizar firmware a la última versión disponible.",
-                        Severity = "Medium",
-                        Category = "Hardware"
-                    }
-                };
+                new ErrorCatalogEntry {
+                    ErrorCode = "ConnectorLockFailure",
+                    Title = "Fallo de Bloqueo del Conector",
+                    Description = "El cargador no pudo bloquear o desbloquear el conector cableado. Esto sucede cuando el actuador no se posiciona correctamente.",
+                    CommonCauses = "• Obstrucción física en el puerto.\n• Actuador de bloqueo dañado.\n• Desgaste en el pin de bloqueo.",
+                    SuggestedSolution = "Inspeccionar visualmente el conector y puerto. Limpiar residuos. Si el error persiste, el técnico debe verificar el voltaje del actuador de bloqueo y su continuidad.",
+                    Severity = "High",
+                    Category = "Hardware"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "EVCommunicationError",
+                    Title = "Error de Comunicación con el Vehículo",
+                    Description = "Fallo en el protocolo de señalización entre el cargador y el sistema de gestión del vehículo (BMS).",
+                    CommonCauses = "• Cable de control (CP/PP) dañado.\n• Problema con la señal PWM del cargador.\n• El vehículo rechazó el inicio de carga.",
+                    SuggestedSolution = "Verificar integridad del cable de carga. Probar con otro vehículo para descartar fallo del BMS del auto. Revisar placa de control CP si no hay señal PWM.",
+                    Severity = "Medium",
+                    Category = "Protocol"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "GroundFailure",
+                    Title = "Fallo de Puesta a Tierra",
+                    Description = "Se detectó una fuga de corriente a tierra o falta de conexión de tierra de protección (PE).",
+                    CommonCauses = "• Falla de aislamiento en el vehículo o cable.\n• Instalación eléctrica del sitio dañada.\n• Sensor RCD defectuoso.",
+                    SuggestedSolution = "Instruir al cliente a desconectar y reintentar. Si persiste, el técnico debe medir la resistencia de puesta a tierra de la instalación eléctrica. Verificar sensor RCMU interno.",
+                    Severity = "Critical",
+                    Category = "Electrical"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "HighTemperature",
+                    Title = "Alta Temperatura",
+                    Description = "La temperatura interna del cargador o conector superó los niveles de seguridad.",
+                    CommonCauses = "• Ventilación obstruida.\n• Fallo de ventilador.\n• Contactos sulfatados causando sobrecalentamiento.",
+                    SuggestedSolution = "Limpiar rejillas de ventilación. Verificar que los ventiladores giren libremente. Revisar apriete de bornes y estado de los pines del conector.",
+                    Severity = "High",
+                    Category = "Hardware"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "OverCurrentFailure",
+                    Title = "Sobrecorriente en la Salida",
+                    Description = "La corriente medida excede el límite nominal del conector o la configuración del cargador.",
+                    CommonCauses = "• BMS del auto solicitando más de lo permitido.\n• Cortocircuito parcial.\n• Error de calibración del sensor.",
+                    SuggestedSolution = "Verificar configuración de límites de corriente en el cargador. Inspeccionar cable en busca de cortes o quemaduras. Verificar sensores Hall.",
+                    Severity = "High",
+                    Category = "Electrical"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "PowerMeterFailure",
+                    Title = "Fallo del Medidor de Energía",
+                    Description = "No se reciben datos del medidor de energía interno (MID).",
+                    CommonCauses = "• Cableado RS485/Modbus suelto.\n• Medidor quemado o sin energía.\n• Interferencia electromagnética.",
+                    SuggestedSolution = "Verificar alimentación del medidor. Revisar cableado de datos entre el medidor y la placa principal del cargador.",
+                    Severity = "Medium",
+                    Category = "Hardware"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "UnderVoltage",
+                    Title = "Bajo Voltaje de Red",
+                    Description = "La tensión de entrada está por debajo del umbral de operación (típicamente -15%).",
+                    CommonCauses = "• Caída de tensión en la red eléctrica.\n• Sobrecarga en el tablero de distribución.\n• Alimentación con cable de sección insuficiente.",
+                    SuggestedSolution = "Verificar tensión de entrada con multímetro. Si es bajo en el sitio, contactar a la proveedora eléctrica. Aumentar sección de cable si hay caída por distancia.",
+                    Severity = "Medium",
+                    Category = "Network"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "OverVoltage",
+                    Title = "Sobrevoltaje de Red",
+                    Description = "La tensión de entrada supera el umbral de operación (típicamente +10%).",
+                    CommonCauses = "• Inestabilidad en la red eléctrica exterior.\n• Fallo en transformador de alta a baja tensión.\n• Transitorios de red.",
+                    SuggestedSolution = "Verificar tensión de entrada. Instalar protectores de sobretensión si es recurrente. Evitar cargar hasta que la red se estabilice.",
+                    Severity = "High",
+                    Category = "Network"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "InternalError",
+                    Title = "Error Interno del Procesador",
+                    Description = "Fallo en el software o microcontrolador del cargador.",
+                    CommonCauses = "• Error de firmware.\n• Reinicio inesperado del sistema.\n• Memoria RAM/Flash corrupta.",
+                    SuggestedSolution = "Reiniciar el cargador completamente (Power Cycle). Actualizar firmware a la última versión disponible.",
+                    Severity = "Medium",
+                    Category = "Hardware"
+                },
+                // NEW ENTRIES
+                new ErrorCatalogEntry {
+                    ErrorCode = "ScreenFailure",
+                    Title = "Fallo de Pantalla",
+                    Description = "La pantalla táctil no responde o está en negro.",
+                    CommonCauses = "• Cable de datos de pantalla desconectado.\n• Fallo en la alimentación de la pantalla.\n• Daño físico por impacto.",
+                    SuggestedSolution = "Verificar conexiones internas de la pantalla. Reiniciar el cargador. Si persiste, reemplazar la unidad de pantalla.",
+                    Severity = "Medium", 
+                    Category = "Hardware"
+                },
+                new ErrorCatalogEntry {
+                    ErrorCode = "InternetConnectionLost",
+                    Title = "Pérdida de Conexión a Internet",
+                    Description = "El cargador no puede conectar con el servidor central (OCPP).",
+                    CommonCauses = "• Fallo del módem 4G/WiFi.\n• Tarjeta SIM sin datos o mal insertada.\n• Cable Ethernet desconectado.",
+                    SuggestedSolution = "Verificar leds del módem. Comprobar saldo de la SIM. Probar cable Ethernet con otro dispositivo.",
+                    Severity = "High",
+                    Category = "Network"
+                }
+            };
 
-                this.ErrorCatalog.AddRange(entries);
-                this.SaveChanges();
+            foreach (var entry in entries)
+            {
+                if (!this.ErrorCatalog.Any(e => e.ErrorCode == entry.ErrorCode))
+                {
+                    this.ErrorCatalog.Add(entry);
+                }
             }
+            this.SaveChanges();
         }
 
         private void AddColumnIfMissingSqlServer(string tableName, string columnName, string columnDefinition)

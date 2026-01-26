@@ -187,6 +187,62 @@ namespace OCPP.Core.Server
                                 {
                                     transaction.StopTagId = idTag;
                                     transaction.MeterStop = (double)stopTransactionRequest.MeterStop / 1000; // Meter value here is always Wh
+
+                                    // Balance Deduction
+                                    try
+                                    {
+                                        ChargeTag payingTag = DbContext.Find<ChargeTag>(transaction.StartTagId);
+                                        if (payingTag != null && !payingTag.InfiniteBalance)
+                                        {
+                                            var billingMode = DbContext.Find<SystemSetting>("Billing_Mode")?.Value ?? "Energy";
+                                            var priceSetting = DbContext.Find<SystemSetting>("PricePerKWh");
+                                            var usageFeeSetting = DbContext.Find<SystemSetting>("UsageFee"); // Updated Logic: Usage Fee
+
+                                            if (priceSetting != null && decimal.TryParse(priceSetting.Value, out decimal price))
+                                            {
+                                                decimal usageFee = 0;
+                                                if (usageFeeSetting != null && decimal.TryParse(usageFeeSetting.Value, out decimal fee))
+                                                {
+                                                    usageFee = fee;
+                                                }
+
+                                                decimal cost = 0;
+                                                decimal consumed = 0;
+
+                                                if (billingMode == "Time")
+                                                {
+                                                    // Time-based billing: Price is per MINUTE
+                                                    TimeSpan duration = transaction.StopTime.Value - transaction.StartTime;
+                                                    decimal durationMinutes = (decimal)duration.TotalMinutes;
+                                                    
+                                                    // Cost = (Minutes * Price/Min) + UsageFee
+                                                    cost = (durationMinutes * price) + usageFee;
+                                                    
+                                                    Logger.LogInformation("StopTransaction => Time Billing: {0:N2} min @ {1}/min + Fee {2} = {3}", durationMinutes, price, usageFee, cost);
+                                                }
+                                                else
+                                                {
+                                                    // Energy-based billing: Price is per kWh
+                                                    consumed = (decimal)(transaction.MeterStop - transaction.MeterStart);
+                                                    if (consumed > 0)
+                                                    {
+                                                        cost = consumed * price;
+                                                    }
+                                                }
+
+                                                if (cost > 0)
+                                                {
+                                                    payingTag.Balance -= cost;
+                                                    Logger.LogInformation("StopTransaction => Deducted {0} from Tag '{1}' (Mode: {2})", cost, payingTag.TagId, billingMode);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Logger.LogError(ex, "StopTransaction => Error deducting balance");
+                                    }
+
                                     transaction.StopReason = stopTransactionRequest.Reason.ToString();
                                     transaction.StopTime = stopTransactionRequest.Timestamp.UtcDateTime;
                                     DbContext.SaveChanges();

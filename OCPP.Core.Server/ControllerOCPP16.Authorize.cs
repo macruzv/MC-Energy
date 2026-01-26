@@ -110,7 +110,15 @@ namespace OCPP.Core.Server
                             }
                             else
                             {
-                                authorizeResponse.IdTagInfo.Status = IdTagInfoStatus.Accepted;
+                                if (ct.InfiniteBalance || ct.Balance > 0)
+                                {
+                                    authorizeResponse.IdTagInfo.Status = IdTagInfoStatus.Accepted;
+                                }
+                                else
+                                {
+                                    authorizeResponse.IdTagInfo.Status = IdTagInfoStatus.Invalid;
+                                    Logger.LogInformation("Authorize => Tag '{0}' rejected due to insufficient balance: {1}", idTag, ct.Balance);
+                                }
                             }
                         }
                         else

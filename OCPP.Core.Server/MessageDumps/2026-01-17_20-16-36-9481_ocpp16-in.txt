@@ -1,0 +1,1 @@
+[2,"28f076e2-8ee5-4dd7-934c-e1d02a12c1bb","BootNotification",{"chargePointModel":"E-Emulator","chargePointSerialNumber":"MontaEmulator","chargePointVendor":"Monta","firmwareVersion":"1.0.0"}]

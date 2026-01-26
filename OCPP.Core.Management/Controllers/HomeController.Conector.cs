@@ -214,14 +214,13 @@ namespace OCPP.Core.Management.Controllers
                 // Get Connector Info
                 var dbConn = DbContext.ConnectorStatuses.FirstOrDefault(x => x.ChargePointId == Id && x.ConnectorId == ConnectorId);
                 
-                // Get Active Transaction
+                // Get Active Transaction (InProgress)
                 var activeTx = DbContext.Transactions
                     .Where(t => t.ChargePointId == Id && t.ConnectorId == ConnectorId && t.StopTime == null)
                     .OrderByDescending(t => t.TransactionId)
                     .FirstOrDefault();
 
-                // Logic Refinement: If charger reports Available but DB has an "active" transaction, 
-                // it's a stale/ghost transaction. We should ignore it for UI purposes.
+                // Logic Refinement: Validate Active Transaction
                 if (onlineStatus != null && onlineStatus.OnlineConnectors != null && 
                     onlineStatus.OnlineConnectors.ContainsKey(ConnectorId))
                 {
@@ -229,30 +228,19 @@ namespace OCPP.Core.Management.Controllers
                     {
                         string realStatus = ocs.Status.ToString();
                         string ocppStatus = ocs.OcPPStatus ?? string.Empty;
-                        
-                        // If the charger is NOT currently Charging/Suspended but we have a transaction,
-                        // and it's not in Preparing either, it might be a ghost session from a previous failure.
-                        // IMPORTANT: We only clear activeTx if we are CERTAIN it's not a real charge.
-                        // If ocppStatus is available, we use it. Otherwise we fall back to general Occupied.
                         bool isActuallyCharging = (ocppStatus == "Charging" || ocppStatus == "SuspendedEVSE" || ocppStatus == "SuspendedEV");
                         
                         if (activeTx != null && !isActuallyCharging)
                         {
-                            // If status is Available, it's definitely a ghost.
-                            // If it's Occupied/Preparing but NOT "Charging" according to raw OCPP, 
-                            // and it's been some time, it might be a ghost (e.g. cable plugged but no session).
                             if (realStatus == "Available" || realStatus == "Unavailable" || realStatus == "Faulted")
                             {
+                                // If charger is definitely available/faulted, existing activeTx is likely ghost/stale.
+                                // But if it was a recent crash, maybe we should treat it as "Stopped"? 
+                                // For now, we null check it, but let's check for Pending below.
                                 activeTx = null;
                             }
                             else if (realStatus == "Occupied" || realStatus == "Preparing")
                             {
-                                // If it's Occupied but NOT Charging according to raw OCPP, it might be just "Connected" 
-                                // or it might be a manual start that hasn't reached "Charging" status yet.
-                                // We keep the transaction if:
-                                // 1. It started less than 1 minute ago (starting up).
-                                // 2. Or there is actual power flow (ChargeRateKW > 0).
-                                
                                 bool hasPowerFlow = (ocs.ChargeRateKW > 0);
                                 bool isVeryRecent = (activeTx.StartTime > DateTime.UtcNow.AddMinutes(-1));
 
@@ -265,9 +253,21 @@ namespace OCPP.Core.Management.Controllers
                     }
                 }
 
+                // If no active transaction, check for PENDING transaction (Stopped but not Acknowledged)
+                // This handles the recovery scenario.
+                Transaction pendingTx = null;
+                if (activeTx == null)
+                {
+                    pendingTx = DbContext.Transactions
+                        .Where(t => t.ChargePointId == Id && t.ConnectorId == ConnectorId && t.StopTime != null && t.IsAcknowledged == false)
+                        .OrderByDescending(t => t.TransactionId)
+                        .FirstOrDefault();
+                }
+
                 ViewBag.ChargePoint = cp;
                 ViewBag.Connector = dbConn;
                 ViewBag.ActiveTransaction = activeTx;
+                ViewBag.PendingTransaction = pendingTx;
                 
                 string activeCustomerName = null;
                 if (activeTx != null && !string.IsNullOrEmpty(activeTx.CustomerIdentifier))
@@ -276,6 +276,23 @@ namespace OCPP.Core.Management.Controllers
                     activeCustomerName = customer?.Name;
                 }
                 ViewBag.ActiveCustomerName = activeCustomerName;
+
+                // Pending Customer Info
+                if (pendingTx != null)
+                {
+                    string pendingCustomerName = pendingTx.CustomerIdentifier;
+                    if (!string.IsNullOrEmpty(pendingTx.CustomerIdentifier))
+                    {
+                         var customer = DbContext.Customers.FirstOrDefault(c => c.Identifier == pendingTx.CustomerIdentifier);
+                         if (customer != null) pendingCustomerName = customer.Name;
+                    }
+                    else if (!string.IsNullOrEmpty(pendingTx.StartTagId))
+                    {
+                         var tag = DbContext.ChargeTags.Include(t=>t.Customer).FirstOrDefault(t => t.TagId == pendingTx.StartTagId);
+                         if (tag?.Customer != null) pendingCustomerName = tag.Customer.Name;
+                    }
+                    ViewBag.PendingCustomerName = pendingCustomerName;
+                }
 
                 ViewBag.OnlineStatus = onlineStatus;
 
@@ -293,6 +310,28 @@ namespace OCPP.Core.Management.Controllers
                 Logger.LogError(exp, "Control: Error loading control page");
                 TempData["ErrMessage"] = exp.Message;
                 return RedirectToAction("Error");
+            }
+        }
+
+        [Authorize]
+        [HttpPost]
+        public IActionResult AcknowledgeTransaction(int tId)
+        {
+            try
+            {
+                var tx = DbContext.Transactions.FirstOrDefault(t => t.TransactionId == tId);
+                if (tx != null)
+                {
+                    tx.IsAcknowledged = true;
+                    DbContext.SaveChanges();
+                    return Ok("Acknowledged");
+                }
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error acknowledging transaction {0}", tId);
+                return StatusCode(500, ex.Message);
             }
         }
         [Authorize]
@@ -438,6 +477,23 @@ namespace OCPP.Core.Management.Controllers
 
             var addressSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "CompanyAddress");
             ViewBag.CompanyAddress = addressSetting?.Value ?? "Estación de Carga Eléctrica";
+
+            // Branch Logic
+            string branchName = null;
+            var chargePoint = DbContext.ChargePoints.FirstOrDefault(cp => cp.ChargePointId == tx.ChargePointId);
+            if (chargePoint != null && !string.IsNullOrEmpty(chargePoint.Branch))
+            {
+                branchName = chargePoint.Branch;
+            }
+            
+            // Fallback to Global Branch Setting if specific charger branch is not set
+            if (string.IsNullOrEmpty(branchName))
+            {
+                 var branchSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "CompanyBranch");
+                 branchName = branchSetting?.Value;
+            }
+            
+            ViewBag.CompanyBranch = branchName;
 
             ViewBag.PrinterDPI = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Printer_DPI")?.Value ?? "150";
             ViewBag.PrinterWidth = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Printer_Width")?.Value ?? "56";

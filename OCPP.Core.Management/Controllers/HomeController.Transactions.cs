@@ -162,7 +162,8 @@ namespace OCPP.Core.Management.Controllers
                                     StartTagName = x.startCT.TagName,
                                     StartTagParentId = x.startCT.ParentTagId,
                                     StopTagName = x.stopCT.TagName,
-                                    StopTagParentId = x.stopCT.ParentTagId
+                                    StopTagParentId = x.stopCT.ParentTagId,
+                                    IsAcknowledged = x.t.IsAcknowledged
                                 })
                                 .OrderByDescending(t => t.TransactionId)
                                 .AsNoTracking()
@@ -173,8 +174,10 @@ namespace OCPP.Core.Management.Controllers
             {
                 Logger.LogError(exp, "Transactions: Error loading charge points from database");
             }
-
+ 
             return View(tlvm);
         }
+
+
     }
 }

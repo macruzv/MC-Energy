@@ -1,0 +1,1 @@
+[3,"be84c7e2-99d3-4226-9f19-12279ca1a172",{"idTagInfo":{"expiryDate":"2026-01-30T00:00:00-04:00","parentIdTag":"Propagas","status":"Accepted"},"transactionId":52}]

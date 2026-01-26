@@ -21,6 +21,7 @@ namespace OCPP.Core.Management.Models
     public class TagReport
     {
         public string TagName { get; set; }
+        public string VehicleId { get; set; }
         public List<TransactionReport> Transactions { get; set; }
     }
 

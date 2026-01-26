@@ -39,6 +39,7 @@ namespace OCPP.Core.Database
         public string Password { get; set; }
         public string ClientCertThumb { get; set; }
         public DateTime? CreateDateTime { get; set; }
+        public string Branch { get; set; }
 
         public virtual ICollection<Transaction> Transactions { get; set; }
         public virtual ICollection<UserChargePoint> UserChargePoints { get; set; }

@@ -22,6 +22,11 @@ namespace OCPP.Core.Management.Controllers
             {
                 Logger.LogTrace("ChargeReport: GenerateReport()...");
                 var report = GenerateReport(startDate, stopDate, group);
+                
+                ViewBag.PricePerKWh = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "PricePerKWh")?.Value ?? "0.00";
+                ViewBag.BillingMode = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Billing_Mode")?.Value ?? "Energy";
+                ViewBag.UsageFee = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "UsageFee")?.Value ?? "0.00";
+
                 return View(report);
             }
             catch (Exception exp)
@@ -51,6 +56,8 @@ namespace OCPP.Core.Management.Controllers
                 csv.Append(DefaultCSVSeparator);
                 csv.Append(_localizer["ChargeReportTag"]);
                 csv.Append(DefaultCSVSeparator);
+                csv.Append("Ficha / Vehículo");
+                csv.Append(DefaultCSVSeparator);
                 csv.AppendLine(_localizer["ChargeReportEnergy"]);
 
                 foreach (var grp in report.Groups)
@@ -63,6 +70,8 @@ namespace OCPP.Core.Management.Controllers
                         csv.Append(EscapeCsvValue(grp.GroupName, DefaultCSVSeparator));
                         csv.Append(DefaultCSVSeparator);
                         csv.Append(EscapeCsvValue(tag.TagName, DefaultCSVSeparator));
+                        csv.Append(DefaultCSVSeparator);
+                        csv.Append(EscapeCsvValue(tag.VehicleId, DefaultCSVSeparator));
                         csv.Append(DefaultCSVSeparator);
                         csv.Append(Math.Round(totalEnergy, 3));
                         csv.AppendLine();
@@ -92,7 +101,8 @@ namespace OCPP.Core.Management.Controllers
 
                 worksheet.Cell(1, 1).Value = _localizer["ChargeReportGroup"].ToString();
                 worksheet.Cell(1, 2).Value = _localizer["ChargeReportTag"].ToString();
-                worksheet.Cell(1, 3).Value = _localizer["ChargeReportEnergy"].ToString();
+                worksheet.Cell(1, 3).Value = "Ficha / Vehículo";
+                worksheet.Cell(1, 4).Value = _localizer["ChargeReportEnergy"].ToString();
 
                 var row = 2;
                 foreach (var grp in report.Groups)
@@ -105,7 +115,8 @@ namespace OCPP.Core.Management.Controllers
 
                         worksheet.Cell(row, 1).Value = grp.GroupName;
                         worksheet.Cell(row, 2).Value = tag.TagName;
-                        worksheet.Cell(row, 3).Value = Math.Round(totalEnergy, 3);
+                        worksheet.Cell(row, 3).Value = tag.VehicleId;
+                        worksheet.Cell(row, 4).Value = Math.Round(totalEnergy, 3);
                         row++;
                     }
                 }
@@ -188,7 +199,8 @@ namespace OCPP.Core.Management.Controllers
                                 StartTagName = startCT.TagName,
                                 StartTagParentId = startCT.ParentTagId,
                                 StopTagName = stopCT.TagName,
-                                StopTagParentId = stopCT.ParentTagId
+                                StopTagParentId = stopCT.ParentTagId,
+                                VehicleId = startCT.VehicleId
                             });
 
             if (!User.IsInRole(Constants.AdminRoleName))
@@ -239,6 +251,7 @@ namespace OCPP.Core.Management.Controllers
                                 .Select(tg => new TagReport
                                 {
                                     TagName = tg.Key,
+                                    VehicleId = tg.FirstOrDefault()?.VehicleId,
                                     Transactions = tg.Select(t => new TransactionReport
                                     {
                                         TransactionId = t.TransactionId,

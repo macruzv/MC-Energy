@@ -1,0 +1,1 @@
+[2,"9d30b52aa383455abcff2e929d13d385","RemoteStopTransaction",{"transactionId":42}]

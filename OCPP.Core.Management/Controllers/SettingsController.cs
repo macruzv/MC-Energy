@@ -47,6 +47,9 @@ namespace OCPP.Core.Management.Controllers
             var addressSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "CompanyAddress");
             ViewBag.CompanyAddress = addressSetting?.Value ?? "Estación de Carga Eléctrica";
 
+            var branchSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "CompanyBranch");
+            ViewBag.CompanyBranch = branchSetting?.Value ?? "";
+
             // Printer Settings
             ViewBag.PrinterMode = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Printer_Mode")?.Value ?? "local";
             ViewBag.PrinterIP = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Printer_IP")?.Value ?? "";
@@ -60,6 +63,7 @@ namespace OCPP.Core.Management.Controllers
             ViewBag.BillingMode = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Billing_Mode")?.Value ?? "Energy";
             ViewBag.PricingType = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Pricing_Type")?.Value ?? "Fixed";
             ViewBag.PricingSchedules = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Pricing_Schedules")?.Value ?? "[]";
+            ViewBag.UsageFee = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "UsageFee")?.Value ?? "0.00";
 
             return View();
         }
@@ -120,7 +124,7 @@ namespace OCPP.Core.Management.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> SaveBillingSettings(string billingMode, string pricingType, string pricingSchedules)
+        public async Task<IActionResult> SaveBillingSettings(string billingMode, string pricingType, string pricingSchedules, string usageFee)
         {
             DbContext.CheckDatabase();
             if (!User.IsInRole(Constants.AdminRoleName)) return Unauthorized();
@@ -129,7 +133,8 @@ namespace OCPP.Core.Management.Controllers
             {
                 { "Billing_Mode", billingMode },
                 { "Pricing_Type", pricingType },
-                { "Pricing_Schedules", pricingSchedules }
+                { "Pricing_Schedules", pricingSchedules },
+                { "UsageFee", usageFee }
             };
 
             foreach (var item in settingsToUpdate)
@@ -151,7 +156,7 @@ namespace OCPP.Core.Management.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> SaveCompany(string companyName, string companyAddress)
+        public async Task<IActionResult> SaveCompany(string companyName, string companyAddress, string companyBranch)
         {
             DbContext.CheckDatabase();
             if (!User.IsInRole(Constants.AdminRoleName)) return Unauthorized();
@@ -178,6 +183,17 @@ namespace OCPP.Core.Management.Controllers
                 addressSetting.Value = companyAddress;
             }
 
+            var branchSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "CompanyBranch");
+            if (branchSetting == null)
+            {
+                branchSetting = new SystemSetting { SettingId = "CompanyBranch", Value = companyBranch };
+                DbContext.SystemSettings.Add(branchSetting);
+            }
+            else
+            {
+                branchSetting.Value = companyBranch;
+            }
+
             await DbContext.SaveChangesAsync();
             TempData["SuccessMessage"] = "Datos de la empresa actualizados.";
             return RedirectToAction("Index");
@@ -201,6 +217,11 @@ namespace OCPP.Core.Management.Controllers
 
             var priceSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "PricePerKWh");
             ViewBag.PricePerKWh = priceSetting?.Value ?? "0.00";
+            
+            ViewBag.BillingMode = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Billing_Mode")?.Value ?? "Energy";
+            ViewBag.PricingType = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Pricing_Type")?.Value ?? "Fixed";
+            ViewBag.PricingSchedules = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Pricing_Schedules")?.Value ?? "[]";
+            ViewBag.UsageFee = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "UsageFee")?.Value ?? "5.00"; // Default demo value if missing
             ViewBag.CustomerName = "CLIENTE DE PRUEBA (DEMO)";
 
             var nameSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "CompanyName");
@@ -208,6 +229,28 @@ namespace OCPP.Core.Management.Controllers
 
             var addressSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "CompanyAddress");
             ViewBag.CompanyAddress = addressSetting?.Value ?? "Estación de Carga Eléctrica";
+
+            var branchSetting = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "CompanyBranch");
+            ViewBag.CompanyBranch = branchSetting?.Value ?? "";
+
+            // Try to find a real charge point to simulate a more realistic ticket
+            // Prioritize one that has a Branch defined so we can see it on the ticket
+            var realChargePoint = DbContext.ChargePoints.FirstOrDefault(cp => !string.IsNullOrEmpty(cp.Branch));
+            
+            // If no charger with branch, just take any charger
+            if (realChargePoint == null)
+            {
+                realChargePoint = DbContext.ChargePoints.FirstOrDefault();
+            }
+
+            if (realChargePoint != null)
+            {
+                dummyTx.ChargePointId = realChargePoint.ChargePointId;
+                if (!string.IsNullOrEmpty(realChargePoint.Branch))
+                {
+                     ViewBag.CompanyBranch = realChargePoint.Branch;
+                }
+            }
 
             ViewBag.PrinterDPI = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Printer_DPI")?.Value ?? "150";
             ViewBag.PrinterWidth = DbContext.SystemSettings.FirstOrDefault(s => s.SettingId == "Printer_Width")?.Value ?? "56";

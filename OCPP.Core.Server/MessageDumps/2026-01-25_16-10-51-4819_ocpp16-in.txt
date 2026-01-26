@@ -1,0 +1,1 @@
+[2,"dcbff2a5-7be5-468a-b811-ef28285c524b","Authorize",{"idTag":"123456"}]

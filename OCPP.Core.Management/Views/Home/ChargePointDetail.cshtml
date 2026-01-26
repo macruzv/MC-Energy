@@ -61,6 +61,11 @@
                         <label class="form-label-md" for="Comment">@Localizer["CommentLabel"]</label>
                         <input class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 200)" data-val-length-max="200" id="Comment" maxlength="200" name="Comment" placeholder="@Localizer["CommentPlaceholder"]" type="text" value="@Model.Comment" />
                     </div>
+
+                    <div class="mb-4">
+                        <label class="form-label-md" for="Branch">Sucursal</label>
+                        <input class="form-control-md w-100" id="Branch" maxlength="100" name="Branch" placeholder="Ej. Kennedy" type="text" value="@Model.Branch" />
+                    </div>
                 </div>
 
                 <div class="col-md-6 border-left border-secondary" style="border-left: 1px solid var(--glass-border) !important;">

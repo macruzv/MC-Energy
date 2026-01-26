@@ -1,0 +1,1 @@
+[3,"e1a621ba-b9aa-4d6d-aa4c-aa62f89013d8",{"idTagInfo":{"expiryDate":"2027-01-18T00:00:00+00:00","parentIdTag":"","status":"Accepted"}}]

@@ -52,6 +52,9 @@ namespace OCPP.Core.Management.Models
         public string ClientCertThumb { get; set; }
 
         public DateTime? CreateDateTime { get; set; }
+        
+        [StringLength(100)]
+        public string Branch { get; set; }
 
         public List<User> AvailableUsers { get; set; }
         public int[] SelectedUserIds { get; set; }

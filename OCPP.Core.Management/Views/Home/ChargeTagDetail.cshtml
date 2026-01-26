@@ -32,12 +32,23 @@
                         <label class="form-label-md" for="TagId">@Localizer["ChargeTagIdLabel"]</label>
                         @if (Model.CurrentTagId == "@")
                         {
-                            <input type="text" class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 50)" data-val-length-max="50" data-val-required="@Localizer["RequiredField"]" id="TagId" maxlength="50" name="TagId" placeholder="@Localizer["ChargeTagIdPlaceholder"]" value="@Model.TagId">
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="text" class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 50)" data-val-length-max="50" data-val-required="@Localizer["RequiredField"]" id="TagId" maxlength="50" name="TagId" placeholder="@Localizer["ChargeTagIdPlaceholder"]" value="@Model.TagId">
+                                <button type="button" onclick="startTagScan()" id="btnScanTag" class="btn btn-outline-info ml-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 38px; border-radius: 12px; border-color: rgba(0,255,128,0.5); color: #00ff80;" title="Escanear NFC">
+                                    <i class="fas fa-wifi"></i>
+                                </button>
+                            </div>
                             <span class="field-validation-valid text-danger small mt-1" data-valmsg-for="TagId" data-valmsg-replace="true"></span>
                         }
                         else
                         {
-                            <input type="text" readonly class="form-control-md w-100 text-muted" id="TagId" name="TagId" value="@Model.TagId">
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="text" readonly class="form-control-md w-100 text-muted" id="TagId" name="TagId" value="@Model.TagId">
+                                <button type="button" onclick="startTagScan()" id="btnScanTagRef" class="btn btn-outline-secondary ml-2 d-flex align-items-center justify-content-center" style="width: 50px; height: 38px; border-radius: 12px;" title="Actualizar por NFC">
+                                    <i class="fas fa-wifi"></i>
+                                </button>
+                            </div>
+                            <small class="text-muted">Escanee una nueva tarjeta para reemplazar este ID.</small>
                         }
                     </div>
 
@@ -45,6 +56,12 @@
                         <label class="form-label-md" for="TagName">@Localizer["ChargeTagNameLabel"]</label>
                         <input class="form-control-md w-100" data-val="true" data-val-length="@string.Format(Localizer["FieldMaxLength"].Value, 200)" data-val-length-max="200" data-val-required="@Localizer["RequiredField"]" id="TagName" maxlength="200" name="TagName" placeholder="@Localizer["ChargeTagNamePlaceholder"]" type="text" value="@Model.TagName" />
                         <span class="field-validation-valid text-danger small mt-1" data-valmsg-for="TagName" data-valmsg-replace="true"></span>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label-md" for="VehicleId">Ficha / Vehículo</label>
+                        <input class="form-control-md w-100" id="VehicleId" maxlength="50" name="VehicleId" placeholder="Ej. Ficha 123" type="text" value="@Model.VehicleId" />
+                        <span class="field-validation-valid text-danger small mt-1" data-valmsg-for="VehicleId" data-valmsg-replace="true"></span>
                     </div>
 
                     <div class="mb-4">
@@ -95,6 +112,20 @@
                         </div>
                         <small class="text-muted d-block mt-1 pl-1">Si se activa, esta etiqueta no podrá iniciar cargas.</small>
                     </div>
+
+                    <div class="mb-4">
+                        <label class="form-label-md" for="Balance">Saldo</label>
+                        <div class="input-group">
+                            <input class="form-control-md w-100" data-val="true" data-val-number="The field Balance must be a number." data-val-required="The Balance field is required." id="Balance" name="Balance" type="text" value="@Model.Balance" />
+                        </div>
+                    </div>
+
+                    <div class="mb-4 pt-2">
+                        <div class="custom-control custom-switch">
+                            @Html.CheckBoxFor(m => m.InfiniteBalance, new { @class = "custom-control-input", @id = "InfiniteBalanceSwitch" })
+                            <label class="custom-control-label font-weight-bold text-white" for="InfiniteBalanceSwitch">Monto Infinito (Sin Límite)</label>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -135,6 +166,58 @@
                 });
             });
 
+            async function startTagScan() {
+                if (!('NDEFReader' in window)) {
+                    Swal.fire({ icon: 'error', title: 'NFC no soportado', text: 'Usa Chrome en Android.' });
+                    return;
+                }
+                
+                // Determine active button
+                const btn = document.getElementById('btnScanTag') || document.getElementById('btnScanTagRef');
+                
+                try {
+                    const ndef = new NDEFReader();
+                    await ndef.scan();
+                    
+                    btn.classList.add('pulse-green');
+                    
+                    Swal.fire({
+                        title: 'Listo para Escanear',
+                        text: 'Acerca la tarjeta al dispositivo...',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 10000,
+                        timerProgressBar: true,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    ndef.addEventListener("reading", ({ serialNumber }) => {
+                        const tagId = serialNumber.replace(/:/g, "").toUpperCase();
+                        
+                        // Set value
+                        const input = document.getElementById('TagId');
+                        input.value = tagId;
+                        input.readOnly = false; // Unlock if it was readonly
+                        input.classList.remove('text-muted');
+                        input.classList.add('text-white');
+                        
+                        // Visual feedback
+                        btn.classList.remove('pulse-green');
+                         Swal.fire({
+                            icon: 'success',
+                            title: 'Capturado',
+                            text: `ID: ${tagId}`,
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    });
+                } catch (error) {
+                    console.error(error);
+                    Swal.fire({ icon: 'error', title: 'Error NFC', text: error.message });
+                }
+            }
+
         function DeleteTag() {
                 var dialog = new BootstrapDialog({
                     title: '@Localizer["TitleDelete"]',
@@ -160,5 +243,18 @@
                 dialog.open();
             }
         </script>
+        <style>
+            .pulse-green {
+                animation: pulse-green 1.5s infinite;
+                background-color: rgba(0, 255, 128, 0.1);
+                box-shadow: 0 0 0 0 rgba(0, 255, 128, 0.7);
+            }
+            
+            @@keyframes pulse-green {
+                0% { box-shadow: 0 0 0 0 rgba(0, 255, 128, 0.7); }
+                70% { box-shadow: 0 0 0 10px rgba(0, 255, 128, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(0, 255, 128, 0); }
+            }
+        </style>
     }
 }

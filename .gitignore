@@ -340,3 +340,8 @@ ASALocalRun/
 healthchecksdb
 /OCPP.Core.Server/Messages_OCPP16/ResetResponse.cs
 /OCPP.Core.Server/Messages_OCPP16/ResetRequest.cs
+
+# Build Artifacts
+Publish_Final/
+Publish_Final.zip
+Publish_Final12.zip

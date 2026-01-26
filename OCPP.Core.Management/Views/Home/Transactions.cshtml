@@ -86,6 +86,12 @@
         </div>
 
         <div class="col-md text-md-right align-self-end">
+            @if (User.IsInRole(OCPP.Core.Management.Constants.AdminRoleName))
+            {
+                <button type="button" class="btn btn-warning font-weight-bold mr-2" style="border-radius:12px;" onclick="AcknowledgeAll()" title="Cerrar todas las pendientes">
+                    <i class="fas fa-check-double mr-1"></i> Cerrar Todo
+                </button>
+            }
             <div class="btn-group">
                 @{
                     string exportBase = Url.Content("~/Home");
@@ -170,12 +176,10 @@
                                 <td class="text-muted small">
                                     @if (!string.IsNullOrEmpty(t.StopReason))
                                     {
-                                        <span class="badge badge-outline-secondary" style="border: 1px solid var(--glass-border); color: var(--md-sys-color-on-surface-variant);">@t.StopReason</span>
-                                        <a href="~/Home/Ticket/@t.TransactionId?print=true" target="_blank" class="btn btn-sm btn-outline-info ml-2" title="Imprimir Ticket">
-                                            <i class="fas fa-print"></i>
-                                        </a>
+                                        <span class="badge badge-outline-secondary mr-2" style="border: 1px solid var(--glass-border); color: var(--md-sys-color-on-surface-variant);">@t.StopReason</span>
                                     }
-                                    else if (t.StopTime == null)
+
+                                    @if (t.StopTime == null)
                                     {
                                         <div class="btn-group">
                                             <a href="~/Home/Control?id=@Uri.EscapeDataString(t.ChargePointId)&connectorId=@t.ConnectorId" class="btn btn-sm btn-outline-primary" title="Ver Control">
@@ -188,9 +192,28 @@
                                     }
                                     else
                                     {
-                                        <a href="~/Home/Ticket/@t.TransactionId?print=true" target="_blank" class="btn btn-sm btn-outline-info" title="Imprimir Ticket">
-                                            <i class="fas fa-print"></i>
-                                        </a>
+                                        // Stopped Transaction
+                                        if (!t.IsAcknowledged)
+                                        {
+                                            <div class="d-inline-flex align-items-center">
+                                                <span class="badge badge-warning text-dark mr-2"><i class="fas fa-exclamation-triangle mr-1"></i> Pendiente</span>
+                                                <div class="btn-group">
+                                                    <a href="~/Home/Ticket/@t.TransactionId?print=true" target="_blank" class="btn btn-sm btn-outline-info" title="Imprimir Ticket">
+                                                        <i class="fas fa-print"></i>
+                                                    </a>
+                                                    <button type="button" class="btn btn-sm btn-warning font-weight-bold" onclick="AcknowledgeTransaction('@t.TransactionId')" title="Cerrar/Finalizar">
+                                                        <i class="fas fa-check"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            // Normal Acknowledged History
+                                            <a href="~/Home/Ticket/@t.TransactionId?print=true" target="_blank" class="btn btn-sm btn-outline-info" title="Imprimir Ticket">
+                                                <i class="fas fa-print"></i>
+                                            </a>
+                                        }
                                     }
                                 </td>
                             </tr>
@@ -236,6 +259,68 @@
                     xmlhttp.send();
                 }
             })
+        }
+
+        function AcknowledgeTransaction(tId) {
+            Swal.fire({
+                title: 'Cerrar Sesión',
+                text: "¿Confirmas cerrar esta sesión pendiente?",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, cerrar',
+                cancelButtonText: 'Cancelar',
+                background: '#1c1b1f',
+                color: '#fff',
+                confirmButtonColor: '#ffc107'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                     Swal.fire({
+                        title: 'Procesando...',
+                        didOpen: () => { Swal.showLoading() }
+                    });
+                    
+                    fetch("@Url.Content("~/Home/AcknowledgeTransaction")?tId=" + tId, { method: 'POST' })
+                    .then(r => {
+                        if (r.ok) {
+                            location.reload();
+                        } else {
+                            Swal.fire('Error', 'No se pudo cerrar la sesión', 'error');
+                        }
+                    });
+                }
+            });
+        }
+
+        function AcknowledgeAll() {
+            Swal.fire({
+                title: 'Cerrar Todo',
+                text: "¿Confirmas cerrar TODAS las sesiones pendientes?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, cerrar todo',
+                cancelButtonText: 'Cancelar',
+                background: '#1c1b1f',
+                color: '#fff',
+                confirmButtonColor: '#ffc107'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                     Swal.fire({
+                        title: 'Procesando...',
+                        didOpen: () => { Swal.showLoading() }
+                    });
+                    
+                    fetch("@Url.Content("~/Home/AcknowledgeAllTransactions")", { method: 'POST' })
+                    .then(r => r.json())
+                    .then(count => {
+                        Swal.fire('Éxito', 'Se cerraron ' + count + ' sesiones.', 'success').then(() => {
+                            location.reload();
+                        });
+                    })
+                    .catch(e => {
+                        Swal.fire('Error', 'Error al procesar solicitud', 'error');
+                    });
+                }
+            });
         }
 
         // Initialize tooltips

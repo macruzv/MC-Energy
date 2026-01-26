@@ -17,36 +17,42 @@ namespace OCPP.Core.Database.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.3")
-                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+                .HasAnnotation("ProductVersion", "8.0.13")
+                .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
-            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+            MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
             modelBuilder.Entity("OCPP.Core.Database.ChargePoint", b =>
                 {
                     b.Property<string>("ChargePointId")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Branch")
+                        .HasColumnType("longtext");
 
                     b.Property<string>("ClientCertThumb")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("Comment")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("CreateDateTime")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("Name")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("Password")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
 
                     b.Property<string>("Username")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
 
                     b.HasKey("ChargePointId");
 
@@ -60,24 +66,38 @@ namespace OCPP.Core.Database.Migrations
                 {
                     b.Property<string>("TagId")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<decimal>("Balance")
+                        .HasColumnType("decimal(65,30)");
 
                     b.Property<bool?>("Blocked")
-                        .HasColumnType("bit");
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("ExpiryDate")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("InfiniteBalance")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<string>("ParentTagId")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
 
                     b.Property<string>("TagName")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("VehicleId")
+                        .HasColumnType("longtext");
 
                     b.HasKey("TagId")
                         .HasName("PK_ChargeKeys");
+
+                    b.HasIndex("CustomerId");
 
                     b.ToTable("ChargeTags");
                 });
@@ -86,94 +106,95 @@ namespace OCPP.Core.Database.Migrations
                 {
                     b.Property<string>("ChargePointId")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<int>("ConnectorId")
                         .HasColumnType("int");
 
                     b.Property<string>("ConnectorName")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<double?>("LastMeter")
-                        .HasColumnType("float");
+                        .HasColumnType("double");
 
                     b.Property<DateTime?>("LastMeterTime")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("LastStatus")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<DateTime?>("LastStatusTime")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime(6)");
 
                     b.HasKey("ChargePointId", "ConnectorId");
 
                     b.ToTable("ConnectorStatus", (string)null);
                 });
 
-            modelBuilder.Entity("OCPP.Core.Database.ConnectorStatusView", b =>
+            modelBuilder.Entity("OCPP.Core.Database.Customer", b =>
                 {
-                    b.Property<string>("ChargePointId")
+                    b.Property<int>("CustomerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("CustomerId"));
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Identifier")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
-                    b.Property<int>("ConnectorId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ConnectorName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<double?>("LastMeter")
-                        .HasColumnType("float");
-
-                    b.Property<DateTime?>("LastMeterTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("LastStatus")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("LastStatusTime")
-                        .HasColumnType("datetime2");
-
-                    b.Property<double?>("MeterStart")
-                        .HasColumnType("float");
-
-                    b.Property<double?>("MeterStop")
-                        .HasColumnType("float");
-
-                    b.Property<string>("StartResult")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("StartTagId")
+                    b.Property<string>("Phone")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
 
-                    b.Property<DateTime?>("StartTime")
-                        .HasColumnType("datetime2");
+                    b.HasKey("CustomerId");
 
-                    b.Property<string>("StopReason")
+                    b.ToTable("Customers");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.ErrorCatalogEntry", b =>
+                {
+                    b.Property<string>("ErrorCode")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
-                    b.Property<string>("StopTagId")
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CommonCauses")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Severity")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
 
-                    b.Property<DateTime?>("StopTime")
-                        .HasColumnType("datetime2");
+                    b.Property<string>("SuggestedSolution")
+                        .HasColumnType("longtext");
 
-                    b.Property<int?>("TransactionId")
-                        .HasColumnType("int");
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
 
-                    b.ToTable((string)null);
+                    b.HasKey("ErrorCode");
 
-                    b.ToView("ConnectorStatusView", (string)null);
+                    b.ToTable("ErrorCatalog");
                 });
 
             modelBuilder.Entity("OCPP.Core.Database.MessageLog", b =>
@@ -182,30 +203,30 @@ namespace OCPP.Core.Database.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("LogId"));
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("LogId"));
 
                     b.Property<string>("ChargePointId")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<int?>("ConnectorId")
                         .HasColumnType("int");
 
                     b.Property<string>("ErrorCode")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<DateTime>("LogTime")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("Result")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("longtext");
 
                     b.HasKey("LogId");
 
@@ -214,59 +235,284 @@ namespace OCPP.Core.Database.Migrations
                     b.ToTable("MessageLog", (string)null);
                 });
 
+            modelBuilder.Entity("OCPP.Core.Database.Permission", b =>
+                {
+                    b.Property<int>("PermissionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("PermissionId"));
+
+                    b.Property<string>("Action")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Controller")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("PermissionId");
+
+                    b.ToTable("Permissions");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.Role", b =>
+                {
+                    b.Property<int>("RoleId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("RoleId"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("RoleId");
+
+                    b.ToTable("Roles");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.RolePermission", b =>
+                {
+                    b.Property<int>("RoleId")
+                        .HasColumnType("int")
+                        .HasColumnOrder(0);
+
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("int")
+                        .HasColumnOrder(1);
+
+                    b.HasKey("RoleId", "PermissionId");
+
+                    b.HasIndex("PermissionId");
+
+                    b.ToTable("RolePermissions");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.SystemSetting", b =>
+                {
+                    b.Property<string>("SettingId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("longtext");
+
+                    b.HasKey("SettingId");
+
+                    b.ToTable("SystemSetting", (string)null);
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.TagGroup", b =>
+                {
+                    b.Property<int>("TagGroupId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("TagGroupId"));
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("TagGroupId");
+
+                    b.ToTable("TagGroups", (string)null);
+                });
+
             modelBuilder.Entity("OCPP.Core.Database.Transaction", b =>
                 {
                     b.Property<int>("TransactionId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("TransactionId"));
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("TransactionId"));
 
                     b.Property<string>("ChargePointId")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int?>("CollectorUserId")
+                        .HasColumnType("int");
 
                     b.Property<int>("ConnectorId")
                         .HasColumnType("int");
 
+                    b.Property<string>("CustomerEmail")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("CustomerIdentifier")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("CustomerPhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<bool>("IsAcknowledged")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<double>("MeterStart")
-                        .HasColumnType("float");
+                        .HasColumnType("double");
 
                     b.Property<double?>("MeterStop")
-                        .HasColumnType("float");
+                        .HasColumnType("double");
+
+                    b.Property<int?>("OperatorUserId")
+                        .HasColumnType("int");
 
                     b.Property<string>("StartResult")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("StartTagId")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
 
                     b.Property<DateTime>("StartTime")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("StopReason")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("StopTagId")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
 
                     b.Property<DateTime?>("StopTime")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("Uid")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("varchar(50)");
 
                     b.HasKey("TransactionId");
 
                     b.HasIndex("ChargePointId", "ConnectorId");
 
                     b.ToTable("Transactions");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.User", b =>
+                {
+                    b.Property<int>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("UserId"));
+
+                    b.Property<DateTime?>("CreateDateTime")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("longtext");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("PasswordHash")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.UserChargePoint", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ChargePointId")
+                        .HasColumnType("varchar(100)");
+
+                    b.HasKey("UserId", "ChargePointId");
+
+                    b.HasIndex("ChargePointId");
+
+                    b.ToTable("UserChargePoints");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.UserRole", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RoleId")
+                        .HasColumnType("int");
+
+                    b.HasKey("UserId", "RoleId");
+
+                    b.HasIndex("RoleId");
+
+                    b.ToTable("UserRoles");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.ChargeTag", b =>
+                {
+                    b.HasOne("OCPP.Core.Database.Customer", "Customer")
+                        .WithMany("ChargeTags")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Customer");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.ConnectorStatus", b =>
+                {
+                    b.HasOne("OCPP.Core.Database.ChargePoint", "ChargePoint")
+                        .WithMany()
+                        .HasForeignKey("ChargePointId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChargePoint");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.RolePermission", b =>
+                {
+                    b.HasOne("OCPP.Core.Database.Permission", "Permission")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OCPP.Core.Database.Role", "Role")
+                        .WithMany("RolePermissions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permission");
+
+                    b.Navigation("Role");
                 });
 
             modelBuilder.Entity("OCPP.Core.Database.Transaction", b =>
@@ -280,9 +526,73 @@ namespace OCPP.Core.Database.Migrations
                     b.Navigation("ChargePoint");
                 });
 
+            modelBuilder.Entity("OCPP.Core.Database.UserChargePoint", b =>
+                {
+                    b.HasOne("OCPP.Core.Database.ChargePoint", "ChargePoint")
+                        .WithMany("UserChargePoints")
+                        .HasForeignKey("ChargePointId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OCPP.Core.Database.User", "User")
+                        .WithMany("UserChargePoints")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChargePoint");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.UserRole", b =>
+                {
+                    b.HasOne("OCPP.Core.Database.Role", "Role")
+                        .WithMany("UserRoles")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OCPP.Core.Database.User", "User")
+                        .WithMany("UserRoles")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Role");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("OCPP.Core.Database.ChargePoint", b =>
                 {
                     b.Navigation("Transactions");
+
+                    b.Navigation("UserChargePoints");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.Customer", b =>
+                {
+                    b.Navigation("ChargeTags");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.Permission", b =>
+                {
+                    b.Navigation("RolePermissions");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.Role", b =>
+                {
+                    b.Navigation("RolePermissions");
+
+                    b.Navigation("UserRoles");
+                });
+
+            modelBuilder.Entity("OCPP.Core.Database.User", b =>
+                {
+                    b.Navigation("UserChargePoints");
+
+                    b.Navigation("UserRoles");
                 });
 #pragma warning restore 612, 618
         }

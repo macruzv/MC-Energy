@@ -28,6 +28,7 @@
                         <th>@Localizer["TagName"]</th>
                         <th>@Localizer["GroupName"]</th>
                         <th>@Localizer["ExpiryDate"]</th>
+                        <th>Saldo</th>
                         <th>@Localizer["Blocked"]</th>
                     </tr>
                 </thead>
@@ -41,6 +42,7 @@
                                 <td>@tag.TagName</td>
                                 <td class="text-muted">@tag.ParentTagId</td>
                                 <td class="text-muted small">@((tag.ExpiryDate != null) ? tag.ExpiryDate.Value.ToString((string)ViewBag.DatePattern) : "-")</td>
+                                <td>@tag.Balance.ToString("C")</td>
                                 <td>
                                     @if (tag.Blocked == true)
                                     {

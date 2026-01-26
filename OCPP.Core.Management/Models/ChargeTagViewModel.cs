@@ -46,5 +46,13 @@ namespace OCPP.Core.Management.Models
         public DateTime? ExpiryDate { get; set; }
 
         public bool Blocked { get; set; }
+        
+        [DataType(DataType.Currency)]
+        public decimal Balance { get; set; }
+
+        public bool InfiniteBalance { get; set; }
+
+        [StringLength(50)]
+        public string VehicleId { get; set; }
     }
 }

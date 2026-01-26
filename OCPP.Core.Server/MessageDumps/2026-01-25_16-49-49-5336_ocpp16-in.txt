@@ -1,0 +1,1 @@
+[2,"45d63eda-ab2f-4ac8-b321-1420e778cf1a","StatusNotification",{"connectorId":2,"errorCode":"NoError","status":"Preparing","timestamp":"2026-01-25T20:49:49Z"}]

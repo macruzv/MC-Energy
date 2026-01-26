@@ -1,0 +1,1 @@
+[3,"7a5a9583-6385-4957-aa4e-30eebf139c3f",{"idTagInfo":{"expiryDate":"2026-01-16T00:00:00-04:00","parentIdTag":"Solectric","status":"Accepted"}}]

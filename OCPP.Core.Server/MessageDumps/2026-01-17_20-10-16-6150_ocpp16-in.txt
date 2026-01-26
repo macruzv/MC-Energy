@@ -1,0 +1,1 @@
+[2,"e2f11ab1-c073-4af0-890a-3349228b319f","StatusNotification",{"connectorId":1,"errorCode":"NoError","status":"SuspendedEV","timestamp":"2026-01-18T00:10:16Z"}]

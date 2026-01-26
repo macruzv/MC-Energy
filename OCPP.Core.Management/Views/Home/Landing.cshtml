@@ -46,13 +46,16 @@
         color: #fff;
         text-transform: uppercase;
         letter-spacing: 2px;
-        text-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        /* Crisp text with outer glow (behind effect) */
+        text-shadow: 
+            0 0 2px #fff,                /* Sharp white edge */
+            0 0 10px rgba(0, 255, 136, 0.8), /* Inner green halo */
+            0 0 30px rgba(0, 255, 136, 0.6), /* Outer glow */
+            0 0 50px rgba(0, 255, 136, 0.4); /* Atmospheric glow */
         margin-bottom: 2rem;
         text-align: center;
-        position: absolute;
-        top: 15%;
+        /* Position handled in inline style or flow for responsiveness */
         width: 100%;
-        left: 0;
     }
 
     .cards-container {
@@ -159,9 +162,11 @@
 </style>
 
 <div class="landing-wrapper">
-    <h1 class="landing-title">ENERGY CORE MC</h1>
+    
 
     <div class="landing-content">
+        <!-- Title positioned just above cards -->
+        <h1 class="landing-title" style="position: relative; top: auto; left: auto; margin-bottom: 30px; margin-top: 20px;">ENERGY CORE MC</h1>
         <div class="cards-container">
             <!-- Charge Now -->
             <a href="@Url.Action("QuickStart", "Home")" class="landing-card card-charge">

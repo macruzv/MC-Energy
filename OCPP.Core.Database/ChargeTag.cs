@@ -32,6 +32,11 @@ namespace OCPP.Core.Database
         public DateTime? ExpiryDate { get; set; }
         public bool? Blocked { get; set; }
         public int? CustomerId { get; set; }
+        
+        public decimal Balance { get; set; }
+        public bool InfiniteBalance { get; set; }
+        
+        public string VehicleId { get; set; }
 
         public virtual Customer Customer { get; set; }
 

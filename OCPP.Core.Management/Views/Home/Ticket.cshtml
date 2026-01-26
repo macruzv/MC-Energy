@@ -52,20 +52,23 @@
         catch {}
     }
 
+    decimal usageFee = decimal.Parse(ViewBag.UsageFee ?? "0.00"); // Usage Fee
+
     decimal total = 0;
-    double durationHours = 0;
+    double durationMinutes = 0; // Updated: Minutes
     
     if (billingMode == "Time")
     {
         if (Model.StopTime.HasValue)
         {
-            durationHours = (Model.StopTime.Value - Model.StartTime).TotalHours;
+            durationMinutes = (Model.StopTime.Value - Model.StartTime).TotalMinutes;
         }
         else if (Model.TransactionId == 0) // Demo
         {
-            durationHours = 1.5;
+            durationMinutes = 90; // 1.5 hours = 90 mins
         }
-        total = (decimal)durationHours * currentPrice;
+        // Cost = (Minutes * Price) + UsageFee
+        total = ((decimal)durationMinutes * currentPrice) + usageFee;
     }
     else // Energy
     {
@@ -147,7 +150,11 @@
     <div class="receipt">
         <div class="center bold">
             <span style="font-size: 12pt;">@ViewBag.CompanyName</span><br>
-            <span style="font-size: 8pt;">@ViewBag.CompanyAddress</span>
+            <span style="font-size: 8pt;">@ViewBag.CompanyAddress</span><br>
+            @if (!string.IsNullOrEmpty(ViewBag.CompanyBranch))
+            {
+                <span style="font-size: 8pt;">Sucursal: @ViewBag.CompanyBranch</span>
+            }
         </div>
         
         <div class="separator"></div>
@@ -155,7 +162,7 @@
         <div class="separator"></div>
 
         <div class="line">TRX: #@(Model.TransactionId == 0 ? "DEMO-001" : Model.TransactionId.ToString())</div>
-        <div class="line">FECHA: @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</div>
+        <div class="line">FECHA: @DateTime.Now.ToString("dd/MM/yyyy hh:mm tt")</div>
         <div class="line">CARG.: @Model.ChargePointId</div>
         <div class="line">CONEC: Boca #@Model.ConnectorId</div>
 
@@ -177,8 +184,14 @@
         
         @if (billingMode == "Time")
         {
-            <div class="line bold" style="font-size: 11pt;">DURACIÓN: @(durationHours.ToString("N2")) h</div>
-            <div class="line">PRECIO/HORA: $@currentPrice.ToString("N2")</div>
+            <div class="line">INICIO: @Model.StartTime.ToString("hh:mm tt")</div>
+            <div class="line">FIN:    @(Model.StopTime?.ToString("hh:mm tt") ?? "-")</div>
+            <div class="line bold" style="font-size: 11pt;">DURACIÓN: @(durationMinutes.ToString("N0")) min.</div>
+            <div class="line">PRECIO: $@currentPrice.ToString("N2")</div>
+            @if(usageFee > 0)
+            {
+                <div class="line">USO DE ESPACIO: $@usageFee.ToString("N2")</div>
+            }
         }
         else
         {

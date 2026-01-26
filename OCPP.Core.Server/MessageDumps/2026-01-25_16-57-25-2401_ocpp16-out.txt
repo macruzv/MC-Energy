@@ -1,0 +1,1 @@
+[2,"59e05732b57b4900a98374376a4ba08e","RemoteStartTransaction",{"connectorId":2,"idTag":"21222122"}]

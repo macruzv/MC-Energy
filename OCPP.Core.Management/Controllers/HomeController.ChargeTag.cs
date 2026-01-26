@@ -124,6 +124,9 @@ namespace OCPP.Core.Management.Controllers
                             newTag.ParentTagId = ctvm.ParentTagId;
                             newTag.ExpiryDate = ctvm.ExpiryDate;
                             newTag.Blocked = ctvm.Blocked;
+                            newTag.Balance = ctvm.Balance;
+                            newTag.InfiniteBalance = ctvm.InfiniteBalance;
+                            newTag.VehicleId = ctvm.VehicleId;
                             DbContext.ChargeTags.Add(newTag);
                             DbContext.SaveChanges();
                             Logger.LogInformation("ChargeTag: New => charge tag saved: {0} / {1}", ctvm.TagId, ctvm.TagName);
@@ -152,6 +155,9 @@ namespace OCPP.Core.Management.Controllers
                             currentChargeTag.ParentTagId = ctvm.ParentTagId;
                             currentChargeTag.ExpiryDate = ctvm.ExpiryDate;
                             currentChargeTag.Blocked = ctvm.Blocked;
+                            currentChargeTag.Balance = ctvm.Balance;
+                            currentChargeTag.InfiniteBalance = ctvm.InfiniteBalance;
+                            currentChargeTag.VehicleId = ctvm.VehicleId;
                             DbContext.SaveChanges();
                             Logger.LogInformation("ChargeTag: Edit => charge tag saved: {0} / {1}", ctvm.TagId, ctvm.TagName);
                         }
@@ -173,6 +179,9 @@ namespace OCPP.Core.Management.Controllers
                         ctvm.ParentTagId = currentChargeTag.ParentTagId;
                         ctvm.ExpiryDate = currentChargeTag.ExpiryDate;
                         ctvm.Blocked = (currentChargeTag.Blocked != null) && currentChargeTag.Blocked.Value;
+                        ctvm.Balance = currentChargeTag.Balance;
+                        ctvm.InfiniteBalance = currentChargeTag.InfiniteBalance;
+                        ctvm.VehicleId = currentChargeTag.VehicleId;
                     }
 
                     string viewName = (!string.IsNullOrEmpty(ctvm.TagId) || Id=="@") ? "ChargeTagDetail" : "ChargeTagList";

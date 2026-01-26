@@ -9,19 +9,55 @@
     ViewData["Title"] = Localizer["Title"];
     DateTime dtNow = DateTime.Now;
     
-    // Calculate Grand Total
+    // Retrieve billing settings
+    decimal pricePerUnit = decimal.Parse(ViewBag.PricePerKWh ?? "0.00");
+    string billingMode = ViewBag.BillingMode ?? "Energy";
+    decimal usageFee = decimal.Parse(ViewBag.UsageFee ?? "0.00");
+
+    // Helper function to calculate cost for a tag
+    Func<OCPP.Core.Management.Models.TagReport, decimal> CalculateTagCost = (tag) => {
+        decimal total = 0;
+        foreach(var t in tag.Transactions)
+        {
+            if (billingMode == "Time")
+            {
+                if (t.StopTime.HasValue)
+                {
+                    double minutes = (t.StopTime.Value - t.StartTime).TotalMinutes;
+                    total += ((decimal)minutes * pricePerUnit) + usageFee;
+                }
+                else
+                {
+                    // Open transaction? Maybe ignore or estimate? 
+                    // Let's ignore open transactions for cost report to avoid confusion or use current time?
+                    // Using 0 for safety.
+                }
+            }
+            else
+            {
+                if (t.Energy.HasValue)
+                {
+                    total += (decimal)t.Energy.Value * pricePerUnit;
+                }
+            }
+        }
+        return total;
+    };
+    
+    decimal grandTotalCost = 0;
     double grandTotalEnergy = 0;
     foreach(var grp in Model.Groups)
     {
         foreach(var tag in grp.Tags)
         {
+             grandTotalCost += CalculateTagCost(tag);
              grandTotalEnergy += tag.Transactions.Where(t => t.Energy.HasValue).Sum(t => t.Energy.Value);
         }
     }
 }
 
 <style>
-    /* Dark Theme & Glassmorphism Overrides for this view */
+    /* ... existing styles ... */
     .charge-report-container {
         color: #e6edf3;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -129,9 +165,88 @@
         color: #79c0ff;
     }
     
+    .money-val {
+        font-family: 'Consolas', monospace;
+        color: #85e89d; /* Greenish for money */
+        font-weight: bold;
+    }
+    
     .subtotal-row {
         background: rgba(0, 123, 255, 0.1); 
         font-weight: bold;
+    }
+    
+    /* PRINT STYLES */
+    @@media print {
+        body {
+            background-color: white !important;
+            color: black !important;
+        }
+        
+        .charge-report-container {
+            color: black !important;
+            width: 100% !important;
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* Hide UI elements */
+        .filters-container, 
+        .d-flex.justify-content-between, 
+        .actions, 
+        nav, 
+        header, 
+        footer,
+        .sidebar,
+        .btn {
+            display: none !important;
+        }
+        
+        /* Reset table styles for print */
+        .table-glass {
+            background: none !important;
+            border: 1px solid #ddd !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+        }
+        
+        .table-glass th {
+            background-color: #f8f9fa !important;
+            color: black !important;
+            border-bottom: 2px solid #000 !important;
+        }
+        
+        .table-glass td {
+            color: black !important;
+            border-bottom: 1px solid #ddd !important;
+        }
+        
+        .group-title {
+            color: black !important;
+            border-bottom: 2px solid #000 !important;
+            margin-top: 20px !important;
+        }
+        
+        .grand-total-value {
+            color: black !important;
+        }
+        
+        .report-summary-header {
+            border-bottom: 2px solid #000 !important;
+        }
+        
+        /* Ensure title is visible */
+        h1 {
+            display: block !important;
+            color: black !important;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .summary-title, .summary-value {
+             color: black !important;
+        }
     }
 </style>
 
@@ -139,8 +254,9 @@
     <br />
     
     <!-- Title and Actions -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>@ViewData["Title"]</h1>
+    <div class="d-flex justify-content-between align-items-center mb-4 keep-for-print">
+        <h1 class="d-none d-print-block">Reporte de Carga</h1> <!-- Only show in print, normal header handled below -->
+        <h1 class="d-print-none">Reporte de Carga</h1>
         <div class="actions">
              <a href="@Url.Action("ChargeReportCsv", new { startDate = Model.StartDate.ToString("yyyy-MM-dd"), stopDate = Model.StopDate.ToString("yyyy-MM-dd"), group = Model.GroupFilter })" 
                 class="btn btn-outline-secondary" title="@Localizer["ExpSummaryCSVTooltipp"]">
@@ -150,34 +266,29 @@
                class="btn btn-outline-success ml-2" title="@Localizer["ExpSummaryXLSXTooltipp"]">
                 <i class="fas fa-file-excel"></i> Excel
             </a>
+            <button onclick="printReport()" class="btn btn-outline-light ml-2">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
         </div>
     </div>
 
     <!-- Filters Form -->
-    <form method="get" asp-action="ChargeReport" class="filters-container">
+    <form method="get" asp-action="ChargeReport" class="filters-container" style="align-items: flex-end;">
         
-        <!-- Quick Date Buttons -->
-        <div class="btn-group mr-3">
-            <a href="@Url.Action("ChargeReport", new { startDate = dtNow.ToString("yyyy-01-01"), stopDate = dtNow.ToString("yyyy-MM-dd"), group = Model.GroupFilter })" class="btn btn-sm btn-secondary">@Localizer["YearToDate"]</a>
-            <a href="@Url.Action("ChargeReport", new { startDate = dtNow.AddYears(-1).ToString("yyyy-01-01"), stopDate = dtNow.AddYears(-1).ToString("yyyy-12-31"), group = Model.GroupFilter })" class="btn btn-sm btn-secondary">@Localizer["PreviousYear"]</a>
-            <a href="@Url.Action("ChargeReport", new { startDate = dtNow.AddMonths(-1).ToString("yyyy-MM-01"), stopDate = new DateTime(dtNow.Year, dtNow.Month, 1).AddDays(-1).ToString("yyyy-MM-dd"), group = Model.GroupFilter })" class="btn btn-sm btn-secondary">@Localizer["PreviousMonth"]</a>
-             <a href="@Url.Action("ChargeReport", new { startDate = dtNow.AddDays(-(int)dtNow.DayOfWeek - 7).ToString("yyyy-MM-dd"), stopDate = dtNow.AddDays(-(int)dtNow.DayOfWeek).AddDays(-1).ToString("yyyy-MM-dd"), group = Model.GroupFilter })" class="btn btn-sm btn-secondary">@Localizer["PreviousWeek"]</a>
-        </div>
-
         <!-- Date Inputs -->
-        <div class="d-flex align-items-center mr-3">
-            <label for="startDate" class="mr-2 mb-0">@Localizer["StartDate"]:</label>
+        <div class="mr-3">
+            <label for="startDate" class="d-block text-muted small mb-1 text-uppercase font-weight-bold">@Localizer["StartDate"]</label>
             <input type="date" id="startDate" name="startDate" class="form-control form-control-dark form-control-sm" value="@Model.StartDate.ToString("yyyy-MM-dd")" />
         </div>
-        <div class="d-flex align-items-center mr-3">
-            <label for="stopDate" class="mr-2 mb-0">@Localizer["StopDate"]:</label>
+        <div class="mr-3">
+            <label for="stopDate" class="d-block text-muted small mb-1 text-uppercase font-weight-bold">@Localizer["StopDate"]</label>
             <input type="date" id="stopDate" name="stopDate" class="form-control form-control-dark form-control-sm" value="@Model.StopDate.ToString("yyyy-MM-dd")" />
         </div>
 
         <!-- Group Dropdown -->
-        <div class="d-flex align-items-center mr-3">
-            <label for="group" class="mr-2 mb-0">@Localizer["ChargeReportGroup"]:</label>
-            <select id="group" name="group" class="form-control form-control-dark form-control-sm">
+        <div class="mr-3">
+            <label for="group" class="d-block text-muted small mb-1 text-uppercase font-weight-bold">@Localizer["ChargeReportGroup"]</label>
+            <select id="group" name="group" class="form-control form-control-dark form-control-sm" style="min-width: 150px;">
                 <option value="">Todos los Grupos</option>
                 @if (Model.AvailableGroups != null)
                 {
@@ -196,7 +307,9 @@
             </select>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-sm">@Localizer["Submit"]</button>
+        <button type="submit" class="btn btn-primary btn-sm mb-0" style="height: 31px;">
+            <i class="fas fa-search mr-1"></i> @Localizer["Submit"]
+        </button>
     </form>
 
     @if (Model.Groups.Count == 0)
@@ -205,37 +318,44 @@
     }
     else
     {
-        <!-- Use In-Memory Localizer for Report Period/Total if needed, or static for now/mockup fit -->
         <!-- Report Summary Header -->
         <div class="report-summary-header">
             <div>
                 <h2 class="summary-title">Período del Reporte</h2>
-                <div class="summary-value">@Model.StartDate.ToString("MMMM dd, yyyy") - @Model.StopDate.ToString("MMMM dd, yyyy")</div>
+                <div class="summary-value">@Model.StartDate.ToString("dd/MM/yyyy") - @Model.StopDate.ToString("dd/MM/yyyy")</div>
             </div>
             <div class="text-end">
                 <h2 class="summary-title">Gran Total</h2>
-                <div class="grand-total-value">@Math.Round(grandTotalEnergy, 2) kWh</div>
+                <div class="grand-total-value">
+                     @Math.Round(grandTotalEnergy, 2) kWh
+                     <div style="font-size: 1.5rem; color: #85e89d;">$@grandTotalCost.ToString("N2")</div>
+                </div>
             </div>
         </div>
 
         @foreach (var group in Model.Groups)
         {
-            double groupTotal = 0;
+            double groupTotalEnergy = 0;
+            decimal groupTotalCost = 0;
+
             <div class="group-section">
                 <!-- Calculate Group Total -->
                 @{
                     foreach(var tag in group.Tags) {
-                         groupTotal += tag.Transactions.Where(t => t.Energy.HasValue).Sum(t => t.Energy.Value);
+                         groupTotalEnergy += tag.Transactions.Where(t => t.Energy.HasValue).Sum(t => t.Energy.Value);
+                         groupTotalCost += CalculateTagCost(tag);
                     }
                 }
                 
-                <h3 class="group-title">@group.GroupName <span style="font-size: 1rem; color: #8b949e; font-weight: normal; margin-left: 10px;">(@Math.Round(groupTotal, 2) kWh)</span></h3>
+                <h3 class="group-title">@group.GroupName <span style="font-size: 1rem; color: #8b949e; font-weight: normal; margin-left: 10px;">(@Math.Round(groupTotalEnergy, 2) kWh | $@groupTotalCost.ToString("N2"))</span></h3>
                 
                 <table class="table table-glass">
                     <thead>
                         <tr>
                             <th>@Localizer["TagName"]</th>
+                            <th>Ficha / Vehículo</th>
                             <th class="text-right">@Localizer["Energy-kWh"]</th>
+                            <th class="text-right">Total ($)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -244,15 +364,21 @@
                             var totalEnergy = tag.Transactions
                                 .Where(t => t.Energy.HasValue)
                                 .Sum(t => t.Energy.Value);
+                            
+                            var totalCost = CalculateTagCost(tag);
 
                             <tr>
                                 <td>@tag.TagName</td>
+                                <td>@tag.VehicleId</td>
                                 <td class="text-right energy-val">@(Math.Round(totalEnergy, 2))</td>
+                                <td class="text-right money-val">$@totalCost.ToString("N2")</td>
                             </tr>
                         }
                         <tr class="subtotal-row">
                             <td>Total</td>
-                            <td class="text-right energy-val">@Math.Round(groupTotal, 2)</td>
+                            <td></td>
+                            <td class="text-right energy-val">@Math.Round(groupTotalEnergy, 2)</td>
+                            <td class="text-right money-val">$@groupTotalCost.ToString("N2")</td>
                         </tr>
                     </tbody>
                 </table>
@@ -260,3 +386,15 @@
         }
     }
 </div>
+
+<!-- Script same as before -->
+<script>
+    function printReport() {
+        const originalTitle = document.title;
+        const startDate = "@Model.StartDate.ToString("yyyyMMdd")";
+        const stopDate = "@Model.StopDate.ToString("yyyyMMdd")";
+        document.title = `Reporte_Carga_${startDate}_${stopDate}`;
+        window.print();
+        setTimeout(() => { document.title = originalTitle; }, 1000);
+    }
+</script>

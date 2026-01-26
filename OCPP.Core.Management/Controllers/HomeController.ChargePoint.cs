@@ -137,6 +137,9 @@ namespace OCPP.Core.Management.Controllers
                             newChargePoint.Password = cpvm.Password;
                             newChargePoint.ClientCertThumb = cpvm.ClientCertThumb;
                             newChargePoint.CreateDateTime = DateTime.UtcNow;
+                            newChargePoint.ClientCertThumb = cpvm.ClientCertThumb;
+                            newChargePoint.CreateDateTime = DateTime.UtcNow;
+                            newChargePoint.Branch = cpvm.Branch;
                             DbContext.ChargePoints.Add(newChargePoint);
                             DbContext.SaveChanges();
                             Logger.LogInformation("ChargePoint: New => charge point saved: {0} / {1}", cpvm.ChargePointId, cpvm.Name);
@@ -195,7 +198,9 @@ namespace OCPP.Core.Management.Controllers
                             currentChargePoint.Comment = cpvm.Comment;
                             currentChargePoint.Username = cpvm.Username;
                             currentChargePoint.Password = cpvm.Password;
+                            currentChargePoint.Password = cpvm.Password;
                             currentChargePoint.ClientCertThumb = cpvm.ClientCertThumb;
+                            currentChargePoint.Branch = cpvm.Branch;
 
                             // Update User Assignments
                             var currentAssignments = DbContext.UserChargePoints.Where(ucp => ucp.ChargePointId == Id);
@@ -230,7 +235,9 @@ namespace OCPP.Core.Management.Controllers
                         cpvm.Username = currentChargePoint.Username;
                         cpvm.Password = currentChargePoint.Password;
                         cpvm.ClientCertThumb = currentChargePoint.ClientCertThumb;
+                        cpvm.ClientCertThumb = currentChargePoint.ClientCertThumb;
                         cpvm.CreateDateTime = currentChargePoint.CreateDateTime;
+                        cpvm.Branch = currentChargePoint.Branch;
 
                         // Reciprocal Assignment: Load users with access
                         cpvm.SelectedUserIds = DbContext.UserChargePoints
