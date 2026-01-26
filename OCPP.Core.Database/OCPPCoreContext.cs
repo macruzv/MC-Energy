@@ -512,6 +512,25 @@ namespace OCPP.Core.Database
 
                 AddColumnIfMissingSqlite("Users", "Name", "TEXT NULL");
             }
+            else if (this.Database.IsMySql())
+            {
+                // MariaDB/MySQL specific extensions
+                // In MariaDB we can use information_schema or simple ALTER IGNORE? 
+                // Better to use safe IF NOT EXISTS via procedure or just catch exception.
+                
+                AddColumnIfMissingMySql("Transactions", "CustomerIdentifier", "varchar(50) NULL");
+                AddColumnIfMissingMySql("Transactions", "CustomerPhone", "varchar(50) NULL");
+                AddColumnIfMissingMySql("Transactions", "CustomerEmail", "varchar(100) NULL");
+                AddColumnIfMissingMySql("Transactions", "OperatorUserId", "int NULL");
+                AddColumnIfMissingMySql("Transactions", "CollectorUserId", "int NULL");
+                AddColumnIfMissingMySql("Transactions", "IsAcknowledged", "bit NOT NULL DEFAULT 0"); // bit is synonymous to tinyint(1) usually
+                
+                AddColumnIfMissingMySql("ChargeTags", "CustomerId", "int NULL");
+                AddColumnIfMissingMySql("ChargeTags", "VehicleId", "varchar(50) NULL");
+                
+                AddColumnIfMissingMySql("ChargePoint", "Branch", "varchar(100) NULL");
+                AddColumnIfMissingMySql("Users", "Name", "varchar(100) NULL");
+            }
             else
             {
                  // Transactions table
@@ -769,6 +788,33 @@ namespace OCPP.Core.Database
             { 
                 Console.WriteLine($"Error adding column {columnName} to {tableName}: {ex.Message}");
             }
+        }
+
+        private void AddColumnIfMissingMySql(string tableName, string columnName, string columnDefinition)
+        {
+            try
+            {
+                // Check if column exists using Information Schema (safe for MySQL/MariaDB)
+                var sqlCheck = $@"
+                    SELECT COUNT(*) 
+                    FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = '{tableName}' 
+                    AND COLUMN_NAME = '{columnName}'";
+
+                // We can't easily ExecuteScalar in EF Core 3.1+ without valid return types or hacks.
+                // But we can just try to Add and catch exception, OR use a Procedure.
+                // Simplest consistent way: ExecuteSqlRaw with "ADD COLUMN IF NOT EXISTS" (MariaDB 10.2+)
+                
+                // MariaDB 10.2+ supports: ALTER TABLE t ADD COLUMN IF NOT EXISTS c ...
+                var sql = $"ALTER TABLE `{tableName}` ADD COLUMN IF NOT EXISTS `{columnName}` {columnDefinition};";
+                this.Database.ExecuteSqlRaw(sql);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding column {columnName} to {tableName} (MySQL): {ex.Message}");
+            }
+        }
         }
 
         partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

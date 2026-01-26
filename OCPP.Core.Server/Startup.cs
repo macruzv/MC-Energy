@@ -59,18 +59,31 @@ namespace OCPP.Core.Server
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            // Configuración del DbContext para usar SQL Server o SQLite según el entorno.
+            // Configuración del DbContext configurable desde appsettings.json
             services.AddDbContext<OCPPCoreContext>(options =>
             {
-                if (Environment.IsDevelopment())
+                // Logic unified for all environments to allow switching providers
+                string provider = Configuration["DatabaseProvider"];
+                string connectionString = "";
+
+                switch (provider?.ToLower())
                 {
-                    string connectionString = Configuration.GetConnectionString("SQLite");
-                    options.UseSqlite(connectionString);
-                }
-                else
-                {
-                    string connectionString = Configuration.GetConnectionString("SqlServer");
-                    options.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure());
+                    case "mariadb":
+                    case "mysql":
+                        connectionString = Configuration.GetConnectionString("MariaDB");
+                        options.UseMySql(connectionString, new MariaDbServerVersion(new Version(10, 6, 0)));
+                        break;
+                        
+                    case "sqlite":
+                        connectionString = Configuration.GetConnectionString("SQLite");
+                        options.UseSqlite(connectionString);
+                        break;
+
+                    case "sqlserver":
+                    default:
+                        connectionString = Configuration.GetConnectionString("SqlServer");
+                        options.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure());
+                        break;
                 }
             });
             services.AddControllers();
