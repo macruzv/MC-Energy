@@ -815,7 +815,7 @@ namespace OCPP.Core.Database
                 Console.WriteLine($"Error adding column {columnName} to {tableName} (MySQL): {ex.Message}");
             }
         }
-        }
+
 
         partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
     }
