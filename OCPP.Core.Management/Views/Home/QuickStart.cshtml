@@ -25,7 +25,14 @@
             <!-- Seleccionar Cliente (Obligatorio) -->
             <div class="row mb-4">
                 <div class="col-md-12">
-                    <label class="small text-white-50 font-weight-bold mb-2 uppercase"><i class="fas fa-user-check mr-1 text-primary"></i> SELECCIONAR CLIENTE (OBLIGATORIO)</label>
+                    <div class="mb-3 text-center">
+                        <button type="button" onclick="startNFCScan()" id="btnNfc" class="btn btn-outline-info rounded-pill px-5 py-3" style="border-color: rgba(0,255,128,0.5); color: #00ff80; box-shadow: 0 0 15px rgba(0,255,128,0.2); font-size: 1.2rem; font-weight: bold;">
+                            <i class="fas fa-wifi mr-2 fa-lg"></i> ESCANEAR TARJETA
+                        </button>
+                    </div>
+
+                    <label class="small text-white-50 font-weight-bold uppercase mb-2"><i class="fas fa-user-check mr-1 text-primary"></i> SELECCIONAR CLIENTE (OBLIGATORIO)</label>
+                    
                     <select id="selCustomer" class="form-control form-control-lg bg-dark-soft text-white border-subtle rounded-pill px-4 select2-customer" onchange="fillCustomerData(this)" required>
                         <option value="">-- Seleccione un cliente --</option>
                         @if (registeredCustomers != null)
@@ -39,6 +46,7 @@
                                         data-id="@c.Identifier" 
                                         data-tel="@c.Phone" 
                                         data-eml="@c.Email"
+                                        data-tagid="@firstTag?.TagId"
                                         data-expiry="@expiryDateStr"
                                         data-blocked="@isBlocked">
                                     @c.Name
@@ -46,6 +54,10 @@
                             }
                         }
                     </select>
+
+                    <div id="nfc-status" class="small text-info mt-2 d-none">
+                        <i class="fas fa-spinner fa-spin mr-1"></i> Acerca la tarjeta al dispositivo...
+                    </div>
                     <hr class="border-subtle my-4">
                 </div>
             </div>
@@ -183,6 +195,19 @@
 
 @section Scripts {
     <script>
+        $(document).ready(function() {
+            $('.select2-customer').select2({
+                placeholder: "-- Seleccione un cliente --",
+                width: '100%'
+                // Removed allowClear to make it look less like tags/removable
+            });
+            
+            // Sync Select2 change to normal change event for existing logic
+            $('.select2-customer').on('select2:select', function (e) {
+                fillCustomerData(this);
+            });
+        });
+
         function fillCustomerData(select) {
             const selectedOption = select.options[select.selectedIndex];
             if (!selectedOption.value) {
@@ -325,9 +350,173 @@
             const url = `@Url.Content("~/Home/Control")?id=${encodeURIComponent(cpId)}&ConnectorId=${encodeURIComponent(connectorId)}&cid=${encodeURIComponent(id)}&cnm=${encodeURIComponent(customerName)}&tel=${encodeURIComponent(tel)}&eml=${encodeURIComponent(eml)}`;
             window.location.href = url;
         }
-    </script>
+        async function startNFCScan() {
+            const btn = document.getElementById('btnNfc');
+            const status = document.getElementById('nfc-status');
+            
+            if (!('NDEFReader' in window)) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'NFC no soportado',
+                    text: 'Tu dispositivo o navegador no soporta lectura NFC (Usa Chrome en Android).',
+                    background: '#1c1b1f',
+                    color: '#fff'
+                });
+                return;
+            }
 
+            try {
+                const ndef = new NDEFReader();
+                await ndef.scan();
+                
+                status.classList.remove('d-none');
+                btn.classList.add('pulse-green');
+                btn.disabled = true;
+
+                ndef.addEventListener("reading", ({ message, serialNumber }) => {
+                    // Convert serialNumber (e.g. "04:85:c9:2a:4b:11:90") to Hex String (e.g. "0485C92A4B1190")
+                    // Note: Check DB format. If DB uses uppercase without colons, we format matching that.
+                    const tagId = serialNumber.replace(/:/g, "").toUpperCase();
+                    
+                    // Search in dropdown
+                    const select = document.getElementById('selCustomer');
+                    let found = false;
+                    for (let i = 0; i < select.options.length; i++) {
+                        // We check both direct match and maybe partial match if DB stores reversed hex (common in some readers)
+                        // For now assuming direct match.
+                        const optTag = select.options[i].getAttribute('data-tagid');
+                        if (optTag === tagId) {
+                            select.selectedIndex = i;
+                            fillCustomerData(select);
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (found) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Tarjeta Detectada',
+                            text: `Cliente identificado: ${tagId}`,
+                            timer: 1500,
+                            showConfirmButton: false,
+                            background: '#1c1b1f',
+                            color: '#fff'
+                        });
+                    } else {
+                         Swal.fire({
+                            icon: 'warning',
+                            title: 'Tarjeta Desconocida',
+                            text: `ID: ${tagId} no está registrado en este sistema.`,
+                            background: '#1c1b1f',
+                            color: '#fff'
+                        });
+                    }
+                    
+                    // Reset UI
+                    status.classList.add('d-none');
+                    btn.classList.remove('pulse-green');
+                    btn.disabled = false;
+                });
+                
+                // Timeout to stop scanning after 30 seconds if nothing read
+                setTimeout(() => {
+                    if (btn.disabled) {
+                        status.classList.add('d-none');
+                        btn.classList.remove('pulse-green');
+                        btn.disabled = false;
+                    }
+                }, 30000);
+
+            } catch (error) {
+                console.error(error);
+                status.classList.add('d-none');
+                btn.disabled = false;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de Lectura',
+                    text: 'No se pudo iniciar el escáner NFC. Asegúrate de dar permisos.',
+                    background: '#1c1b1f',
+                    color: '#fff'
+                });
+            }
+        }
+
+    </script>
+    
     <style>
+        .pulse-green {
+            animation: pulse-green 1.5s infinite;
+            background-color: rgba(0, 255, 128, 0.1);
+        }
+        
+        @@keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 128, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(0, 255, 128, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 128, 0); }
+        }
+
+        /* Select2 Dark Theme Customization */
+        .select2-container .select2-selection--single {
+            background-color: #2b2b2b !important; /* Dark grey background */
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            border-radius: 50px !important;
+            height: 50px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+
+        .select2-container .select2-selection--single .select2-selection__rendered {
+            color: #ffffff !important; /* White text */
+            padding-left: 20px !important;
+            font-size: 1.1rem !important;
+            line-height: normal !important;
+        }
+
+        .select2-container .select2-selection--single .select2-selection__placeholder {
+            color: #aaaaaa !important;
+        }
+
+        .select2-container .select2-selection--single .select2-selection__arrow {
+            height: 48px !important;
+            right: 15px !important;
+        }
+        
+        .select2-container .select2-selection--single .select2-selection__arrow b {
+            border-color: #fff transparent transparent transparent !important;
+        }
+
+        /* Dropdown Menu */
+        .select2-dropdown {
+            background-color: #1e1e1e !important;
+            border: 1px solid #444 !important;
+            color: #ffffff !important;
+            z-index: 9999;
+        }
+
+        /* Search Box in Dropdown */
+        .select2-search--dropdown .select2-search__field {
+            background-color: #2d2d30 !important;
+            color: #ffffff !important;
+            border: 1px solid #555 !important;
+            border-radius: 4px;
+        }
+
+        /* Options */
+        .select2-results__option {
+            color: #ffffff !important;
+            padding: 10px 15px !important;
+        }
+
+        .select2-results__option--highlighted[aria-selected] {
+            background-color: #375a7f !important; /* Blue highlight */
+            color: white !important;
+        }
+
+        .select2-results__option[aria-selected="true"] {
+            background-color: #2b2b2b !important;
+        }
+
         .station-card:hover {
             transform: translateY(-10px);
             background: rgba(255,255,255,0.05) !important;

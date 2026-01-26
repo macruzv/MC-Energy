@@ -1,9 +1,9 @@
 @using OCPP.Core.Database
 @{
-    ViewData["Title"] = "Panel de Control";
     ChargePoint cp = ViewBag.ChargePoint;
     ConnectorStatus connector = ViewBag.Connector;
     Transaction activeTx = ViewBag.ActiveTransaction;
+    Transaction pendingTx = ViewBag.PendingTransaction;
     ChargePointStatus onlineStatus = ViewBag.OnlineStatus;
     
     if (cp == null || connector == null)
@@ -32,7 +32,8 @@
     
     // Logic Refinement: Recognize active charging even if status is simplified to "Occupied"
     bool isCharging = (currentStatus == "Charging" || ocppStatus == "Charging" || ocppStatus == "SuspendedEVSE" || ocppStatus == "SuspendedEV" || chargeRate > 0);
-    bool canStart = (activeTx == null && (currentStatus == "Preparing" || currentStatus == "Occupied"));
+    // Block start if Pending present
+    bool canStart = (activeTx == null && pendingTx == null && (currentStatus == "Preparing" || currentStatus == "Occupied" || currentStatus == "Available")); 
 
     string cid = Context.Request.Query["cid"];
     string cnm = Context.Request.Query["cnm"];
@@ -78,45 +79,93 @@
                     <div id="control-actions" class="mt-5 d-flex flex-column align-items-center gap-3">
                         @if (activeTx == null)
                         {
-                            <div class="w-100 mb-3 text-left @(!string.IsNullOrEmpty(cid) ? "d-none" : "")">
-                                <label class="small text-muted font-weight-bold mb-2"><i class="fas fa-id-card mr-1"></i> SELECCIONAR TARJETA (RFID)</label>
-                                <select id="selTag" class="form-control bg-transparent text-white border-subtle rounded-pill px-4" onchange="updateCustomerName(this)">
-                                    <option value="21222122" class="bg-dark">Sin Tarjeta (Temporal)</option>
-                                    @if (ViewBag.Tags != null)
-                                    {
-                                        foreach (var tag in ViewBag.Tags as List<OCPP.Core.Database.ChargeTag>)
-                                        {
-                                            <option value="@tag.TagId" data-customer="@(tag.Customer?.Name ?? "Sin Cliente")" class="bg-dark">
-                                                @tag.TagId (@(tag.TagName ?? "Sin Nombre"))
-                                            </option>
-                                        }
-                                    }
-                                </select>
-                                <div id="selected-customer" class="mt-2 small text-primary-md font-weight-bold d-none">
-                                    <i class="fas fa-user mr-1"></i> Cliente: <span id="cust-name"></span>
-                                </div>
-                            </div>
-
-                            <button id="btnStart" class="btn btn-primary btn-lg px-5 rounded-pill shadow-glow @(canStart ? "" : "disabled") w-100" 
-                                    @(canStart ? "onclick=StartCharging()" : "disabled")>
-                                <i class="fas fa-play mr-2"></i> INICIAR CARGA
-                            </button>
-                            @if (!canStart)
+                            // Logic Update: Only show pending recovery if charger is ONLINE and responsive
+                            if (pendingTx != null && isOnline && currentStatus != "Unavailable" && currentStatus != "Unknown")
                             {
-                                <div id="start-warning" class="mt-1 text-warning small text-center">
-                                    @if (currentStatus == "Available")
-                                    {
-                                        <i class="fas fa-plug mr-1"></i> <text>Por favor, conecte el vehículo para iniciar</text>
-                                    }
-                                    else if (currentStatus == "Preparing" || currentStatus == "Occupied")
-                                    {
-                                        <i class="fas fa-check-circle mr-1"></i> <text>Vehículo detectado, listo para iniciar</text>
-                                    }
-                                    else
-                                    {
-                                        <i class="fas fa-exclamation-circle mr-1"></i> <text>Cargador fuera de línea o no disponible (@currentStatus)</text>
-                                    }
+                                <!-- PENDING SESSION RECOVERY UI -->
+                                <div class="w-100 p-4 mb-3 text-left" style="background: rgba(255, 193, 7, 0.1); border: 1px dashed rgba(255, 193, 7, 0.3); border-radius: 16px;">
+                                    <h5 class="text-warning font-weight-bold mb-3"><i class="fas fa-exclamation-triangle mr-2"></i>SESIÓN PENDIENTE</h5>
+                                    
+                                    <div class="mb-2">
+                                        <small class="text-muted d-block text-uppercase">Cliente</small>
+                                        <span class="font-weight-bold text-white">@(ViewBag.PendingCustomerName ?? "Desconocido")</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-3">
+                                        <div>
+                                            <small class="text-muted d-block text-uppercase">Energía</small>
+                                            <span class="font-weight-bold text-white">@((pendingTx.MeterStop - pendingTx.MeterStart)?.ToString("F2") ?? "0.00") kWh</span>
+                                        </div>
+                                        <div class="text-right">
+                                            <small class="text-muted d-block text-uppercase">Fin</small>
+                                            <span class="font-weight-bold text-white">@pendingTx.StopTime?.ToLocalTime().ToString("t")</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex flex-column mt-4">
+                                        <button onclick="ClosePending(@pendingTx.TransactionId)" class="btn btn-warning btn-lg w-100 py-3 font-weight-bold text-dark shadow-glow mb-5" style="border-radius: 20px; font-size: 1.3rem;">
+                                            <i class="fas fa-print mr-2"></i><i class="fas fa-check mr-2"></i> CERRAR Y IMPRIMIR
+                                        </button>
+                                        
+                                        @if (currentStatus == "Available" || currentStatus == "Occupied" || currentStatus == "Preparing")
+                                        {
+                                            <button onclick="ContinueTransaction(@pendingTx.TransactionId, '@(pendingTx.StartTagId ?? "")')" class="btn btn-outline-success btn-lg w-100 py-3 font-weight-bold" style="border-radius: 20px; font-size: 1.3rem; border-width: 2px; box-shadow: 0 0 15px rgba(0, 255, 128, 0.2);">
+                                                <i class="fas fa-play mr-2"></i> CONTINUAR SESIÓN
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <div class="text-center text-muted small mt-2">
+                                                <i class="fas fa-exclamation-triangle mr-1"></i> No se puede continuar (Cargador @currentStatus)
+                                            </div>
+                                        }
+                                    </div>
                                 </div>
+                                <div class="small text-muted text-center w-75 mx-auto">
+                                    <i class="fas fa-info-circle mr-1"></i> Debe cerrar la sesión anterior para iniciar una nueva.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="w-100 mb-3 text-left @(!string.IsNullOrEmpty(cid) ? "d-none" : "")">
+                                    <label class="small text-muted font-weight-bold mb-2"><i class="fas fa-id-card mr-1"></i> SELECCIONAR TARJETA (RFID)</label>
+                                    <select id="selTag" class="form-control bg-transparent text-white border-subtle rounded-pill px-4" onchange="updateCustomerName(this)">
+                                        <option value="21222122" class="bg-dark">Sin Tarjeta (Temporal)</option>
+                                        @if (ViewBag.Tags != null)
+                                        {
+                                            foreach (var tag in ViewBag.Tags as List<OCPP.Core.Database.ChargeTag>)
+                                            {
+                                                <option value="@tag.TagId" data-customer="@(tag.Customer?.Name ?? "Sin Cliente")" class="bg-dark">
+                                                    @tag.TagId (@(tag.TagName ?? "Sin Nombre"))
+                                                </option>
+                                            }
+                                        }
+                                    </select>
+                                    <div id="selected-customer" class="mt-2 small text-primary-md font-weight-bold d-none">
+                                        <i class="fas fa-user mr-1"></i> Cliente: <span id="cust-name"></span>
+                                    </div>
+                                </div>
+
+                                <button id="btnStart" class="btn btn-primary btn-lg px-5 rounded-pill shadow-glow @(canStart ? "" : "disabled") w-100" 
+                                        @(canStart ? "onclick=StartCharging()" : "disabled")>
+                                    <i class="fas fa-play mr-2"></i> INICIAR CARGA
+                                </button>
+                                @if (!canStart)
+                                {
+                                    <div id="start-warning" class="mt-1 text-warning small text-center">
+                                        @if (currentStatus == "Available")
+                                        {
+                                            <i class="fas fa-plug mr-1"></i> <text>Por favor, conecte el vehículo para iniciar</text>
+                                        }
+                                        else if (currentStatus == "Preparing" || currentStatus == "Occupied")
+                                        {
+                                            <i class="fas fa-check-circle mr-1"></i> <text>Vehículo detectado, listo para iniciar</text>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-exclamation-circle mr-1"></i> <text>Cargador fuera de línea o no disponible (@currentStatus)</text>
+                                        }
+                                    </div>
+                                }
                             }
                         }
                         else
@@ -401,31 +450,136 @@
             if (result.isConfirmed) {
                 Swal.fire({ 
                     title: 'Parando...', 
+                    text: 'Enviando comando de parada y cerrando sesión...',
                     background: '#1c1b1f',
                     color: '#fff',
+                    allowOutsideClick: false,
                     didOpen: () => Swal.showLoading() 
                 });
+                
+                // 1. Send Remote Stop
                 fetch(`@Url.Content("~/API/RemoteStop/")@cp.ChargePointId?tId=${tId}&cId=${cId}`)
                     .then(r => r.text())
                     .then(msg => {
-                        Swal.fire({
-                            title: 'Comando Enviado',
-                            text: msg,
-                            icon: 'info',
-                            background: '#1c1b1f',
-                            color: '#fff',
-                            showCancelButton: true,
-                            confirmButtonText: 'Imprimir Ticket',
-                            cancelButtonText: 'Cerrar',
-                            confirmButtonColor: '#d0bcff',
-                            cancelButtonColor: '#49454f'
-                        }).then((choice) => {
-                            if (choice.isConfirmed) {
-                                window.open(`@Url.Content("~/Home/Ticket/")${tId}?print=true`, '_blank');
-                            }
-                            // Eliminamos location.reload() para evitar congelamiento. 
-                            // El polling detectará el cierre de la sesión.
-                        });
+                        // 2. Wait 2 seconds for charger to update DB (StopTransaction) so Ticket is correct
+                        return new Promise(resolve => setTimeout(resolve, 2000));
+                    })
+                    .then(() => {
+                        // 3. Open Ticket
+                        window.open(`@Url.Content("~/Home/Ticket/")` + tId + '?print=true', '_blank');
+                        
+                        // 4. Auto-Acknowledge since user manually stopped it
+                        return fetch(`@Url.Content("~/Home/AcknowledgeTransaction")?tId=${tId}`, { method: 'POST' });
+                    })
+                    .then(() => {
+                        // 5. Reload to fresh state (bypassing Pending screen)
+                        location.reload();
+                    })
+                    .catch(e => {
+                        console.error(e);
+                        location.reload();
+                    });
+            }
+        });
+    }
+
+    function ClosePending(tId) {
+        Swal.fire({
+            title: 'Cerrar Sesión',
+            text: "¿Confirmas cerrar esta sesión e imprimir el ticket final?",
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, cerrar',
+            cancelButtonText: 'Cancelar',
+            background: '#1c1b1f',
+            color: '#fff',
+            confirmButtonColor: '#ffc107',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                 // 1. Open Ticket Window
+                 window.open(`@Url.Content("~/Home/Ticket/")` + tId + '?print=true', '_blank');
+
+                 // 2. Acknowledge and Reload
+                 fetch(`@Url.Content("~/Home/AcknowledgeTransaction")?tId=${tId}`, { method: 'POST' })
+                    .then(r => {
+                        if (r.ok) {
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            Swal.fire('Error', 'No se pudo cerrar la sesión', 'error');
+                        }
+                    });
+            }
+        });
+    }
+
+    function ContinueTransaction(tId, tagId) {
+        if (!tagId || tagId === "") tagId = "21222122"; // Pass default or error if tag missing
+        Swal.fire({
+            title: 'Continuar Sesión',
+            text: "¿Deseas cerrar la sesión anterior y continuar inmediatamente iniciando una nueva?",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, continuar',
+            cancelButtonText: 'Cancelar',
+            background: '#1c1b1f',
+            color: '#fff',
+            confirmButtonColor: '#00c853'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Procesando...',
+                    html: 'Cerrando sesión anterior e iniciando nueva...',
+                    background: '#1c1b1f',
+                    color: '#fff',
+                    didOpen: () => { Swal.showLoading() }
+                });
+
+                // 1. Acknowledge old transaction
+                fetch(`@Url.Content("~/Home/AcknowledgeTransaction")?tId=${tId}`, { method: 'POST' })
+                    .then(r => {
+                        if (r.ok) {
+                            // 2. Start new transaction
+                            // Reuse existing quickstart params if available
+                            const cid = '@cid';
+                            const tel = '@tel';
+                            const eml = '@eml';
+
+                            let apiUrl = `@Url.Content("~/API/RemoteStart/")@(cp.ChargePointId)?cId=@(connector.ConnectorId)&tag=${encodeURIComponent(tagId)}`;
+                            if (cid) apiUrl += `&customerId=${encodeURIComponent(cid)}&customerPhone=${encodeURIComponent(tel)}&customerEmail=${encodeURIComponent(eml)}`;
+
+                            return fetch(apiUrl);
+                        } else {
+                            throw new Error("Failed to close previous session");
+                        }
+                    })
+                    .then(r => {
+                        if (!r.ok) throw new Error("Start command failed: " + r.statusText);
+                        return r.text();
+                    })
+                    .then(msg => {
+                        if (msg.includes('aceptado') || msg.includes('Accepted')) {
+                            Swal.fire({
+                                title: '¡Sesión Iniciada!',
+                                text: 'Se ha continuado la carga exitosamente.',
+                                icon: 'success',
+                                background: '#1c1b1f',
+                                color: '#fff'
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                             Swal.fire({
+                                title: 'No se pudo iniciar',
+                                text: msg,
+                                icon: 'warning',
+                                background: '#1c1b1f',
+                                color: '#fff'
+                            }).then(() => location.reload()); // Reload anyway as old session is closed
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        Swal.fire('Error', 'Hubo un problema al continuar la sesión: ' + err.message, 'error').then(() => location.reload());
                     });
             }
         });
