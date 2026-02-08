@@ -1,21 +1,49 @@
 #!/bin/bash
 
-# Exit on error
-set -e
+# Build script for Linux deployment
+# Output directory: Publish_Linux
 
-echo "Cleaning previous builds..."
-rm -rf Publish_Linux
-mkdir Publish_Linux
+echo "Starting build for Linux..."
 
-echo "Building Management (Web UI)..."
-dotnet publish OCPP.Core.Management/OCPP.Core.Management.csproj -c Release -r linux-x64 --self-contained false -o ./Publish_Linux/Management
+# Define output directories
+OUTPUT_DIR="Publish_Linux"
+MANAGEMENT_OUT="$OUTPUT_DIR/Management"
+SERVER_OUT="$OUTPUT_DIR/Server"
 
-echo "Building Server (OCPP Endpoint)..."
-dotnet publish OCPP.Core.Server/OCPP.Core.Server.csproj -c Release -r linux-x64 --self-contained false -o ./Publish_Linux/Server
+# Clean previous builds
+if [ -d "$OUTPUT_DIR" ]; then
+    echo "Cleaning output directory..."
+    rm -rf "$OUTPUT_DIR"
+fi
 
-echo "Copying Database Files (if needed for seeding)..."
-# Optional: Copy default sqlite if used, or ensure appsettings are present
-cp OCPP.Core.Management/appsettings.json ./Publish_Linux/Management/
-cp OCPP.Core.Server/appsettings.json ./Publish_Linux/Server/
+mkdir -p "$MANAGEMENT_OUT"
+mkdir -p "$SERVER_OUT"
 
-echo "Build Complete! Files are in ./Publish_Linux/"
+# Build Management Project
+echo "Building OCPP.Core.Management..."
+dotnet publish "OCPP.Core.Management/OCPP.Core.Management.csproj" \
+    -c Release \
+    -r linux-x64 \
+    --self-contained true \
+    -o "$MANAGEMENT_OUT"
+
+if [ $? -ne 0 ]; then
+    echo "Error building Management project!"
+    exit 1
+fi
+
+# Build Server Project
+echo "Building OCPP.Core.Server..."
+dotnet publish "OCPP.Core.Server/OCPP.Core.Server.csproj" \
+    -c Release \
+    -r linux-x64 \
+    --self-contained true \
+    -o "$SERVER_OUT"
+
+if [ $? -ne 0 ]; then
+    echo "Error building Server project!"
+    exit 1
+fi
+
+echo "Build completed successfully!"
+echo "Output is located in $OUTPUT_DIR"

@@ -124,7 +124,7 @@ namespace OCPP.Core.Management.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> SaveBillingSettings(string billingMode, string pricingType, string pricingSchedules, string usageFee)
+        public async Task<IActionResult> SaveBillingSettings(string billingMode, string pricingType, string pricingSchedules, string usageFee, string price)
         {
             DbContext.CheckDatabase();
             if (!User.IsInRole(Constants.AdminRoleName)) return Unauthorized();
@@ -134,7 +134,8 @@ namespace OCPP.Core.Management.Controllers
                 { "Billing_Mode", billingMode },
                 { "Pricing_Type", pricingType },
                 { "Pricing_Schedules", pricingSchedules },
-                { "UsageFee", usageFee }
+                { "UsageFee", usageFee },
+                { "PricePerKWh", price }
             };
 
             foreach (var item in settingsToUpdate)
